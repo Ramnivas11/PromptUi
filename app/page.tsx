@@ -1,101 +1,230 @@
-import Image from "next/image";
+"use client";
+
+import React, { useState, useCallback, useEffect } from "react";
+import { ResizableSchematic } from "@/components/ui/resizable-schematic";
+import { Header } from "@/components/ui/header";
+import { PromptForm } from "@/components/prompt/prompt-form";
+import { PreviewPanel } from "@/components/preview/preview-panel";
+import { HistorySidebar } from "@/components/sidebar/history-sidebar";
+
+// Default Code Template
+const DEFAULT_CODE = `import React from 'react';
+
+export default function App() {
+  return (
+    <div className="min-h-screen bg-neutral-950 flex items-center justify-center p-8">
+      <div className="text-center space-y-8 max-w-2xl">
+        <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-md bg-amber-500/10 border border-amber-500/20 text-amber-500 text-xs font-medium uppercase tracking-wider">
+          ✨ Professional Components
+        </div>
+        <h1 className="text-6xl font-bold text-white tracking-tight">
+          Prompt<span className="text-amber-500">UI</span>
+        </h1>
+        <p className="text-xl text-neutral-400 leading-relaxed max-w-lg mx-auto">
+          Describe any UI component, and watch it build instantly.
+          <br />
+          <span className="text-neutral-500 text-sm mt-4 block">Production-ready React & Tailwind.</span>
+        </p>
+      </div>
+    </div>
+  );
+}`;
 
 export default function Home() {
-  return (
-    <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-      <main className="flex flex-col gap-8 row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="https://nextjs.org/icons/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="list-inside list-decimal text-sm text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
-          <li className="mb-2">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded font-semibold">
-              app/page.tsx
-            </code>
-            .
-          </li>
-          <li>Save and see your changes instantly.</li>
-        </ol>
+  // --- State ---
+  const [prompt, setPrompt] = useState("");
+  const [code, setCode] = useState(DEFAULT_CODE);
+  const [isLoading, setIsLoading] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [retryCountdown, setRetryCountdown] = useState<number | null>(null);
+  const [sandpackKey, setSandpackKey] = useState(0);
+  const [showHistory, setShowHistory] = useState(false);
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+  // Mobile Tab State (kept simple for strict separation)
+  const [activeTab, setActiveTab] = useState<"prompt" | "preview">("prompt");
+
+  // --- Effects ---
+
+  // Load from LocalStorage
+  useEffect(() => {
+    const savedPrompt = localStorage.getItem("promptui_prompt");
+    const savedCode = localStorage.getItem("promptui_code");
+    if (savedPrompt) setPrompt(savedPrompt);
+    if (savedCode) {
+      setCode(savedCode);
+      setSandpackKey((k) => k + 1);
+    }
+  }, []);
+
+  // Save to LocalStorage
+  useEffect(() => {
+    localStorage.setItem("promptui_prompt", prompt);
+    localStorage.setItem("promptui_code", code);
+  }, [prompt, code]);
+
+  // Cleanup Layout Persistence (Critical Fix)
+  useEffect(() => {
+    localStorage.removeItem("promptui-layout-v2");
+    localStorage.removeItem("promptui-layout-v3");
+  }, []);
+
+  // Countdown Logic
+  useEffect(() => {
+    if (retryCountdown === null) return;
+    if (retryCountdown <= 0) {
+      setRetryCountdown(null);
+      setError(null);
+      return;
+    }
+    const timer = setInterval(() => {
+      setRetryCountdown((prev) => (prev !== null ? prev - 1 : null));
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [retryCountdown]);
+
+  // --- Handlers ---
+
+  const handleGenerate = useCallback(async () => {
+    if (!prompt.trim() || isLoading || retryCountdown !== null) return;
+
+    setIsLoading(true);
+    setError(null);
+    setRetryCountdown(null);
+
+    try {
+      const res = await fetch("/api/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prompt: prompt.trim() }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        if (res.status === 429 && data.isRateLimit) {
+          setRetryCountdown(15);
+          throw new Error(data.error);
+        }
+        throw new Error(data.error || "Failed to generate component.");
+      }
+
+      setCode(data.code);
+      setSandpackKey((k) => k + 1);
+      setActiveTab("preview"); // Auto-switch on mobile
+
+      // Save History
+      const item = { prompt: prompt, code: data.code, timestamp: Date.now() };
+      const saved = localStorage.getItem("promptui_history");
+      const history = saved ? JSON.parse(saved) : [];
+      const newHistory = [item, ...history].slice(0, 50);
+      localStorage.setItem("promptui_history", JSON.stringify(newHistory));
+
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Something went wrong.";
+      setError(message);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [prompt, isLoading, retryCountdown]);
+
+  const handleCopy = useCallback(() => {
+    navigator.clipboard.writeText(code);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }, [code]);
+
+  // --- Render ---
+
+  return (
+    <div className="h-screen w-screen bg-black text-foreground flex flex-col overflow-hidden">
+
+      <Header onHistoryClick={() => setShowHistory(true)} />
+
+      <HistorySidebar
+        isOpen={showHistory}
+        onClose={() => setShowHistory(false)}
+        onSelect={(item) => {
+          setPrompt(item.prompt);
+          setCode(item.code);
+          setSandpackKey((k) => k + 1);
+          setShowHistory(false);
+        }}
+      />
+
+      {/* Main Layout Area */}
+      <main className="flex-1 min-h-0 flex flex-col lg:flex-row relative">
+
+        {/* Mobile Tabs */}
+        <div className="lg:hidden flex-shrink-0 bg-zinc-950 border-b border-white/10 p-2 flex gap-2">
+          <button
+            onClick={() => setActiveTab("prompt")}
+            className={`flex-1 py-2 text-xs font-medium rounded-md transition-colors ${activeTab === "prompt"
+              ? "bg-zinc-800 text-white border border-white/10"
+              : "text-zinc-500 hover:text-zinc-300"
+              }`}
           >
-            <Image
-              className="dark:invert"
-              src="https://nextjs.org/icons/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:min-w-44"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+            Prompt
+          </button>
+          <button
+            onClick={() => setActiveTab("preview")}
+            className={`flex-1 py-2 text-xs font-medium rounded-md transition-colors ${activeTab === "preview"
+              ? "bg-zinc-800 text-white border border-white/10"
+              : "text-zinc-500 hover:text-zinc-300"
+              }`}
           >
-            Read our docs
-          </a>
+            Preview
+          </button>
         </div>
+
+        {/* Desktop: Custom Resizable Layout */}
+        <div className="hidden lg:flex flex-1 min-h-0 min-w-0">
+          <ResizableSchematic
+            initialLeftWidth={35}
+            leftPanel={
+              <PromptForm
+                prompt={prompt}
+                setPrompt={setPrompt}
+                onSubmit={handleGenerate}
+                isLoading={isLoading}
+                retryCountdown={retryCountdown}
+                error={error}
+              />
+            }
+            rightPanel={
+              <PreviewPanel
+                code={code}
+                sandpackKey={sandpackKey}
+                copied={copied}
+                onCopy={handleCopy}
+              />
+            }
+          />
+        </div>
+
+        {/* Mobile: Stacked View & Visibility Control */}
+        <div className="lg:hidden flex-1 min-h-0 relative">
+          <div className={`absolute inset-0 z-10 bg-black ${activeTab === "prompt" ? "block" : "hidden"}`}>
+            <PromptForm
+              prompt={prompt}
+              setPrompt={setPrompt}
+              onSubmit={handleGenerate}
+              isLoading={isLoading}
+              retryCountdown={retryCountdown}
+              error={error}
+            />
+          </div>
+          <div className={`absolute inset-0 z-10 bg-black ${activeTab === "preview" ? "block" : "hidden"}`}>
+            <PreviewPanel
+              code={code}
+              sandpackKey={sandpackKey}
+              copied={copied}
+              onCopy={handleCopy}
+            />
+          </div>
+        </div>
+
       </main>
-      <footer className="row-start-3 flex gap-6 flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="https://nextjs.org/icons/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="https://nextjs.org/icons/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="https://nextjs.org/icons/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
     </div>
   );
 }
