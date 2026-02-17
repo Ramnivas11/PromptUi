@@ -3,7 +3,6 @@
 import React, { useEffect, useState } from "react";
 import { History, X, Clock, ChevronRight, Trash2 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-// import { cn } from "@/lib/utils";
 
 interface HistoryItem {
     prompt: string;
@@ -21,7 +20,6 @@ export function HistorySidebar({ isOpen, onClose, onSelect }: HistorySidebarProp
     const [history, setHistory] = useState<HistoryItem[]>([]);
 
     useEffect(() => {
-        // Load history from localStorage
         const saved = localStorage.getItem("promptui_history");
         if (saved) {
             try {
@@ -30,7 +28,7 @@ export function HistorySidebar({ isOpen, onClose, onSelect }: HistorySidebarProp
                 console.error("Failed to parse history", e);
             }
         }
-    }, [isOpen]); // Reload when opened
+    }, [isOpen]);
 
     const clearHistory = () => {
         setHistory([]);
@@ -41,13 +39,13 @@ export function HistorySidebar({ isOpen, onClose, onSelect }: HistorySidebarProp
         <AnimatePresence>
             {isOpen && (
                 <>
-                    {/* Backdrop for mobile */}
+                    {/* Backdrop — visible on all screen sizes */}
                     <motion.div
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
                         exit={{ opacity: 0 }}
                         onClick={onClose}
-                        className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 lg:hidden"
+                        className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40"
                     />
 
                     {/* Sidebar Panel */}
@@ -56,10 +54,10 @@ export function HistorySidebar({ isOpen, onClose, onSelect }: HistorySidebarProp
                         animate={{ x: 0 }}
                         exit={{ x: "-100%" }}
                         transition={{ type: "spring", damping: 25, stiffness: 200 }}
-                        className="fixed left-0 top-0 bottom-0 w-[300px] bg-black border-r border-white/10 z-50 flex flex-col shadow-2xl"
+                        className="fixed left-0 top-0 bottom-0 w-[280px] sm:w-[320px] bg-black border-r border-white/10 z-50 flex flex-col shadow-2xl"
                     >
                         {/* Header */}
-                        <div className="flex items-center justify-between p-4 border-b border-white/5 bg-zinc-950">
+                        <div className="flex items-center justify-between p-3 sm:p-4 border-b border-white/5 bg-zinc-950">
                             <div className="flex items-center gap-2 text-zinc-100 font-semibold uppercase tracking-wide text-xs">
                                 <History size={16} className="text-amber-500" />
                                 <span>History</span>
@@ -73,7 +71,7 @@ export function HistorySidebar({ isOpen, onClose, onSelect }: HistorySidebarProp
                         </div>
 
                         {/* List */}
-                        <div className="flex-1 overflow-y-auto p-3 space-y-2">
+                        <div className="flex-1 overflow-y-auto p-2 sm:p-3 space-y-2">
                             {history.length === 0 ? (
                                 <div className="text-center text-zinc-600 py-12 text-sm">
                                     <Clock size={24} className="mx-auto mb-3 opacity-20" />
@@ -106,7 +104,7 @@ export function HistorySidebar({ isOpen, onClose, onSelect }: HistorySidebarProp
 
                         {/* Footer */}
                         {history.length > 0 && (
-                            <div className="p-4 border-t border-white/5 bg-zinc-950">
+                            <div className="p-3 sm:p-4 border-t border-white/5 bg-zinc-950">
                                 <button
                                     onClick={clearHistory}
                                     className="w-full flex items-center justify-center gap-2 text-xs text-zinc-500 hover:text-red-400 hover:bg-red-500/5 py-2.5 rounded-md transition-colors border border-transparent hover:border-red-500/10 uppercase tracking-wider font-medium"

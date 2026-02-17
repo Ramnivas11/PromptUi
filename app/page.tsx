@@ -6,21 +6,22 @@ import { Header } from "@/components/ui/header";
 import { PromptForm } from "@/components/prompt/prompt-form";
 import { PreviewPanel } from "@/components/preview/preview-panel";
 import { HistorySidebar } from "@/components/sidebar/history-sidebar";
+import { ToastProvider, useToast } from "@/components/ui/toast";
 
 // Default Code Template
 const DEFAULT_CODE = `import React from 'react';
 
 export default function App() {
   return (
-    <div className="min-h-screen bg-neutral-950 flex items-center justify-center p-8">
-      <div className="text-center space-y-8 max-w-2xl">
+    <div className="min-h-screen bg-neutral-950 flex items-center justify-center p-6 sm:p-8">
+      <div className="text-center space-y-6 sm:space-y-8 max-w-2xl w-full px-4">
         <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-md bg-amber-500/10 border border-amber-500/20 text-amber-500 text-xs font-medium uppercase tracking-wider">
           ✨ Professional Components
         </div>
-        <h1 className="text-6xl font-bold text-white tracking-tight">
+        <h1 className="text-4xl sm:text-5xl md:text-6xl font-bold text-white tracking-tight">
           Prompt<span className="text-amber-500">UI</span>
         </h1>
-        <p className="text-xl text-neutral-400 leading-relaxed max-w-lg mx-auto">
+        <p className="text-lg sm:text-xl text-neutral-400 leading-relaxed max-w-lg mx-auto">
           Describe any UI component, and watch it build instantly.
           <br />
           <span className="text-neutral-500 text-sm mt-4 block">Production-ready React & Tailwind.</span>
@@ -30,7 +31,7 @@ export default function App() {
   );
 }`;
 
-export default function Home() {
+function HomeContent() {
   // --- State ---
   const [prompt, setPrompt] = useState("");
   const [code, setCode] = useState(DEFAULT_CODE);
@@ -40,34 +41,36 @@ export default function Home() {
   const [retryCountdown, setRetryCountdown] = useState<number | null>(null);
   const [sandpackKey, setSandpackKey] = useState(0);
   const [showHistory, setShowHistory] = useState(false);
-
-  // Mobile Tab State (kept simple for strict separation)
   const [activeTab, setActiveTab] = useState<"prompt" | "preview">("prompt");
+
+  const { toast } = useToast();
 
   // --- Effects ---
 
   // Load from LocalStorage
   useEffect(() => {
-    const savedPrompt = localStorage.getItem("promptui_prompt");
-    const savedCode = localStorage.getItem("promptui_code");
-    if (savedPrompt) setPrompt(savedPrompt);
-    if (savedCode) {
-      setCode(savedCode);
-      setSandpackKey((k) => k + 1);
+    try {
+      const savedPrompt = localStorage.getItem("promptui_prompt");
+      const savedCode = localStorage.getItem("promptui_code");
+      if (savedPrompt) setPrompt(savedPrompt);
+      if (savedCode) {
+        setCode(savedCode);
+        setSandpackKey((k) => k + 1);
+      }
+    } catch {
+      // localStorage may be unavailable in some environments
     }
   }, []);
 
   // Save to LocalStorage
   useEffect(() => {
-    localStorage.setItem("promptui_prompt", prompt);
-    localStorage.setItem("promptui_code", code);
+    try {
+      localStorage.setItem("promptui_prompt", prompt);
+      localStorage.setItem("promptui_code", code);
+    } catch {
+      // Silently fail if storage is full or unavailable
+    }
   }, [prompt, code]);
-
-  // Cleanup Layout Persistence (Critical Fix)
-  useEffect(() => {
-    localStorage.removeItem("promptui-layout-v2");
-    localStorage.removeItem("promptui-layout-v3");
-  }, []);
 
   // Countdown Logic
   useEffect(() => {
@@ -111,34 +114,64 @@ export default function Home() {
 
       setCode(data.code);
       setSandpackKey((k) => k + 1);
-      setActiveTab("preview"); // Auto-switch on mobile
+      setActiveTab("preview");
+      toast("Component generated!", "success");
 
       // Save History
-      const item = { prompt: prompt, code: data.code, timestamp: Date.now() };
-      const saved = localStorage.getItem("promptui_history");
-      const history = saved ? JSON.parse(saved) : [];
-      const newHistory = [item, ...history].slice(0, 50);
-      localStorage.setItem("promptui_history", JSON.stringify(newHistory));
-
+      try {
+        const item = { prompt, code: data.code, timestamp: Date.now() };
+        const saved = localStorage.getItem("promptui_history");
+        const history = saved ? JSON.parse(saved) : [];
+        const newHistory = [item, ...history].slice(0, 50);
+        localStorage.setItem("promptui_history", JSON.stringify(newHistory));
+      } catch {
+        // History save failed, non-critical
+      }
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Something went wrong.";
+      const message =
+        err instanceof Error ? err.message : "Something went wrong.";
       setError(message);
+      toast(message, "error");
     } finally {
       setIsLoading(false);
     }
-  }, [prompt, isLoading, retryCountdown]);
+  }, [prompt, isLoading, retryCountdown, toast]);
 
   const handleCopy = useCallback(() => {
-    navigator.clipboard.writeText(code);
+    navigator.clipboard.writeText(code).catch(() => {
+      // Fallback for browsers that don't support clipboard API
+      const textarea = document.createElement("textarea");
+      textarea.value = code;
+      document.body.appendChild(textarea);
+      textarea.select();
+      document.execCommand("copy");
+      document.body.removeChild(textarea);
+    });
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   }, [code]);
 
+  // Keyboard Shortcuts
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
+        e.preventDefault();
+        handleGenerate();
+      }
+      if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === "C") {
+        e.preventDefault();
+        handleCopy();
+        toast("Code copied!", "success");
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [handleGenerate, handleCopy, toast]);
+
   // --- Render ---
 
   return (
-    <div className="h-screen w-screen bg-black text-foreground flex flex-col overflow-hidden">
-
+    <div className="h-[100dvh] w-screen bg-black text-foreground flex flex-col overflow-hidden">
       <Header onHistoryClick={() => setShowHistory(true)} />
 
       <HistorySidebar
@@ -149,31 +182,31 @@ export default function Home() {
           setCode(item.code);
           setSandpackKey((k) => k + 1);
           setShowHistory(false);
+          toast("Prompt restored from history", "info");
         }}
       />
 
       {/* Main Layout Area */}
       <main className="flex-1 min-h-0 flex flex-col lg:flex-row relative">
-
         {/* Mobile Tabs */}
-        <div className="lg:hidden flex-shrink-0 bg-zinc-950 border-b border-white/10 p-2 flex gap-2">
+        <div className="lg:hidden flex-shrink-0 bg-zinc-950 border-b border-white/10 p-1.5 sm:p-2 flex gap-1.5 sm:gap-2">
           <button
             onClick={() => setActiveTab("prompt")}
-            className={`flex-1 py-2 text-xs font-medium rounded-md transition-colors ${activeTab === "prompt"
-              ? "bg-zinc-800 text-white border border-white/10"
-              : "text-zinc-500 hover:text-zinc-300"
+            className={`flex-1 py-2 sm:py-2.5 text-xs font-medium rounded-md transition-all duration-200 ${activeTab === "prompt"
+                ? "bg-zinc-800 text-white border border-white/10 shadow-lg"
+                : "text-zinc-500 hover:text-zinc-300"
               }`}
           >
-            Prompt
+            ✏️ Prompt
           </button>
           <button
             onClick={() => setActiveTab("preview")}
-            className={`flex-1 py-2 text-xs font-medium rounded-md transition-colors ${activeTab === "preview"
-              ? "bg-zinc-800 text-white border border-white/10"
-              : "text-zinc-500 hover:text-zinc-300"
+            className={`flex-1 py-2 sm:py-2.5 text-xs font-medium rounded-md transition-all duration-200 ${activeTab === "preview"
+                ? "bg-zinc-800 text-white border border-white/10 shadow-lg"
+                : "text-zinc-500 hover:text-zinc-300"
               }`}
           >
-            Preview
+            👁️ Preview
           </button>
         </div>
 
@@ -197,6 +230,7 @@ export default function Home() {
                 sandpackKey={sandpackKey}
                 copied={copied}
                 onCopy={handleCopy}
+                onToast={toast}
               />
             }
           />
@@ -204,7 +238,10 @@ export default function Home() {
 
         {/* Mobile: Stacked View & Visibility Control */}
         <div className="lg:hidden flex-1 min-h-0 relative">
-          <div className={`absolute inset-0 z-10 bg-black ${activeTab === "prompt" ? "block" : "hidden"}`}>
+          <div
+            className={`absolute inset-0 z-10 bg-black ${activeTab === "prompt" ? "block" : "hidden"
+              }`}
+          >
             <PromptForm
               prompt={prompt}
               setPrompt={setPrompt}
@@ -214,17 +251,44 @@ export default function Home() {
               error={error}
             />
           </div>
-          <div className={`absolute inset-0 z-10 bg-black ${activeTab === "preview" ? "block" : "hidden"}`}>
+          <div
+            className={`absolute inset-0 z-10 bg-black ${activeTab === "preview" ? "block" : "hidden"
+              }`}
+          >
             <PreviewPanel
               code={code}
               sandpackKey={sandpackKey}
               copied={copied}
               onCopy={handleCopy}
+              onToast={toast}
             />
           </div>
         </div>
-
       </main>
+
+      {/* Keyboard Shortcut Hint — desktop only */}
+      <div className="flex-shrink-0 hidden lg:flex items-center justify-center gap-4 py-1.5 bg-zinc-950/80 border-t border-white/5 text-[10px] text-zinc-600">
+        <span>
+          <kbd className="px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-400 font-mono text-[9px] mr-1">
+            Ctrl+Enter
+          </kbd>
+          Generate
+        </span>
+        <span>
+          <kbd className="px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-400 font-mono text-[9px] mr-1">
+            Ctrl+Shift+C
+          </kbd>
+          Copy Code
+        </span>
+      </div>
     </div>
+  );
+}
+
+export default function Home() {
+  return (
+    <ToastProvider>
+      <HomeContent />
+    </ToastProvider>
   );
 }

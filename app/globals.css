@@ -6,7 +6,6 @@
   :root {
     /* Luxury Dark Theme (Black & Gold) */
     --background: 0 0% 0%;
-    /* Pure Black */
     --foreground: 0 0% 95%;
 
     --card: 0 0% 4%;
@@ -33,12 +32,10 @@
     --destructive-foreground: 0 0% 95%;
 
     --border: 0 0% 12%;
-    /* Subtle borders */
     --input: 0 0% 12%;
     --ring: 45 93% 47%;
 
     --radius: 0.5rem;
-    /* Crisper radius */
   }
 }
 
@@ -51,6 +48,7 @@
     background-color: hsl(var(--background));
     color: hsl(var(--foreground));
     font-feature-settings: "rlig" 1, "calt" 1;
+    overflow: hidden;
   }
 
   .glass-panel {
@@ -59,8 +57,8 @@
 
   /* Custom Scrollbar */
   ::-webkit-scrollbar {
-    width: 6px;
-    height: 6px;
+    width: 5px;
+    height: 5px;
   }
 
   ::-webkit-scrollbar-track {
@@ -68,6 +66,69 @@
   }
 
   ::-webkit-scrollbar-thumb {
-    @apply bg-zinc-800 rounded-full hover:bg-zinc-700 transition-colors;
+    @apply bg-zinc-800 rounded-full hover:bg-zinc-700;
   }
+}
+
+/* ============================
+   Sandpack Layout Overrides
+   ============================ */
+
+/* Force Sandpack to fill container via parent class */
+.sandpack-fill .sp-wrapper,
+.sandpack-fill .sp-layout,
+.sandpack-fill .sp-stack {
+  height: 100% !important;
+  width: 100% !important;
+}
+
+.sandpack-fill .sp-preview-container,
+.sandpack-fill .sp-preview-iframe {
+  height: 100% !important;
+  width: 100% !important;
+}
+
+.sandpack-fill .sp-preview-actions {
+  z-index: 10;
+}
+
+/* Fullscreen preview page overrides */
+.fullscreen-preview .sp-wrapper,
+.fullscreen-preview .sp-layout,
+.fullscreen-preview .sp-stack {
+  height: 100% !important;
+  width: 100% !important;
+}
+
+.fullscreen-preview .sp-layout {
+  border: none !important;
+  border-radius: 0 !important;
+}
+
+.fullscreen-preview .sp-preview-container {
+  border-radius: 0 !important;
+  height: 100% !important;
+  width: 100% !important;
+}
+
+.fullscreen-preview .sp-preview-iframe {
+  height: 100% !important;
+  width: 100% !important;
+}
+
+/* Skeleton Loading Pulse */
+@keyframes skeleton-pulse {
+
+  0%,
+  100% {
+    opacity: 0.4;
+  }
+
+  50% {
+    opacity: 0.8;
+  }
+}
+
+.skeleton-pulse {
+  animation: skeleton-pulse 1.8s ease-in-out infinite;
 }

@@ -6,12 +6,13 @@ import {
     SandpackLayout,
     SandpackPreview,
 } from "@codesandbox/sandpack-react";
-import { ArrowLeft, Loader2 } from "lucide-react";
+import { ArrowLeft, Loader2, RefreshCw } from "lucide-react";
 import Link from "next/link";
 import { motion } from "framer-motion";
 
 export default function PreviewPage() {
     const [code, setCode] = useState<string | null>(null);
+    const [previewKey, setPreviewKey] = useState(0);
 
     useEffect(() => {
         const savedCode = localStorage.getItem("promptui_code");
@@ -20,9 +21,22 @@ export default function PreviewPage() {
         }
     }, []);
 
+    // Listen for storage changes (live sync from editor tab)
+    useEffect(() => {
+        const handler = () => {
+            const updated = localStorage.getItem("promptui_code");
+            if (updated && updated !== code) {
+                setCode(updated);
+                setPreviewKey((k) => k + 1);
+            }
+        };
+        window.addEventListener("storage", handler);
+        return () => window.removeEventListener("storage", handler);
+    }, [code]);
+
     if (!code) {
         return (
-            <div className="h-[100dvh] flex items-center justify-center bg-zinc-950 text-zinc-500 gap-2">
+            <div className="h-[100dvh] w-full flex items-center justify-center bg-zinc-950 text-zinc-500 gap-2">
                 <Loader2 className="animate-spin" size={20} />
                 Loading preview...
             </div>
@@ -30,8 +44,9 @@ export default function PreviewPage() {
     }
 
     return (
-        <div className="h-[100dvh] w-full bg-zinc-950 relative">
+        <div className="h-[100dvh] w-full bg-zinc-950 relative fullscreen-preview overflow-hidden">
             <SandpackProvider
+                key={previewKey}
                 template="react"
                 theme="dark"
                 files={{
@@ -40,41 +55,57 @@ export default function PreviewPage() {
                 customSetup={{
                     dependencies: {
                         "lucide-react": "latest",
-                        "clsx": "latest",
+                        clsx: "latest",
                         "tailwind-merge": "latest",
                     },
                 }}
                 options={{
                     externalResources: ["https://cdn.tailwindcss.com"],
-                    classes: {
-                        "sp-wrapper": "h-full w-full",
-                        "sp-layout": "h-full w-full",
-                        "sp-preview": "h-full w-full",
-                    },
                 }}
             >
-                <SandpackLayout style={{ height: "100%", border: "none" }}>
+                <SandpackLayout
+                    style={{
+                        height: "100%",
+                        width: "100%",
+                        border: "none",
+                        borderRadius: 0,
+                        display: "flex",
+                        flexDirection: "column",
+                        backgroundColor: "#09090b",
+                    }}
+                >
                     <SandpackPreview
                         showOpenInCodeSandbox={false}
                         showRefreshButton={false}
-                        style={{ height: "100%" }}
+                        style={{
+                            flex: 1,
+                            minHeight: 0,
+                            width: "100%",
+                        }}
                     />
                 </SandpackLayout>
             </SandpackProvider>
 
-            {/* Floating Back Button */}
+            {/* Floating Controls */}
             <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="absolute bottom-6 left-6 z-50"
+                className="absolute bottom-4 sm:bottom-6 left-4 sm:left-6 z-50 flex items-center gap-2 sm:gap-3"
             >
                 <Link
                     href="/"
-                    className="flex items-center gap-2 px-4 py-2 bg-zinc-900/90 backdrop-blur border border-white/10 rounded-full text-zinc-300 hover:text-white hover:bg-zinc-800 transition-colors shadow-lg"
+                    className="flex items-center gap-2 px-3 sm:px-4 py-2 sm:py-2.5 bg-zinc-900/90 backdrop-blur-xl border border-white/10 rounded-full text-zinc-300 hover:text-white hover:bg-zinc-800 transition-all shadow-2xl text-xs sm:text-sm"
                 >
-                    <ArrowLeft size={16} />
-                    Back to Editor
+                    <ArrowLeft size={14} />
+                    <span className="font-medium">Back</span>
                 </Link>
+                <button
+                    onClick={() => setPreviewKey((k) => k + 1)}
+                    className="flex items-center gap-2 px-3 py-2 sm:py-2.5 bg-zinc-900/90 backdrop-blur-xl border border-white/10 rounded-full text-zinc-300 hover:text-white hover:bg-zinc-800 transition-all shadow-2xl"
+                    title="Refresh Preview"
+                >
+                    <RefreshCw size={14} />
+                </button>
             </motion.div>
         </div>
     );
