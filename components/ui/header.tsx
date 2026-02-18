@@ -33,7 +33,7 @@ export function Header({ onHistoryClick }: HeaderProps) {
 
                 {/* GitHub link — inline SVG so it always works */}
                 <a
-                    href="https://github.com"
+                    href="https://github.com/"
                     target="_blank"
                     rel="noopener noreferrer"
                     className="p-2 rounded-md bg-white/5 hover:bg-white/10 text-zinc-400 hover:text-white transition-colors border border-white/5 hover:border-white/10"

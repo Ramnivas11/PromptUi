@@ -1,12 +1,15 @@
 "use client";
 
-import React, { useState, useCallback, useEffect } from "react";
+import React, { useState, useCallback, useEffect, useRef } from "react";
 import { ResizableSchematic } from "@/components/ui/resizable-schematic";
 import { Header } from "@/components/ui/header";
 import { PromptForm } from "@/components/prompt/prompt-form";
 import { PreviewPanel } from "@/components/preview/preview-panel";
 import { HistorySidebar } from "@/components/sidebar/history-sidebar";
 import { ToastProvider, useToast } from "@/components/ui/toast";
+import { ErrorBoundary } from "@/components/ui/error-boundary";
+import { stripMarkdownFences } from "@/lib/parse-multi-file";
+import { decompressFromEncodedURIComponent } from "lz-string";
 
 // Default Code Template
 const DEFAULT_CODE = `import React from 'react';
@@ -35,6 +38,7 @@ function HomeContent() {
   // --- State ---
   const [prompt, setPrompt] = useState("");
   const [code, setCode] = useState(DEFAULT_CODE);
+  const [files, setFiles] = useState<Record<string, string>>({ "/App.js": DEFAULT_CODE });
   const [isLoading, setIsLoading] = useState(false);
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -42,6 +46,18 @@ function HomeContent() {
   const [sandpackKey, setSandpackKey] = useState(0);
   const [showHistory, setShowHistory] = useState(false);
   const [activeTab, setActiveTab] = useState<"prompt" | "preview">("prompt");
+
+  // Feature toggles
+  const [isIterating, setIsIterating] = useState(false);
+  const [hasGenerated, setHasGenerated] = useState(false);
+
+  // Auto-fix state
+  const [isFixing, setIsFixing] = useState(false);
+  const [fixAttempt, setFixAttempt] = useState(0);
+  const [loadingStatus, setLoadingStatus] = useState<string | undefined>(undefined);
+
+  // SSE abort controller
+  const abortRef = useRef<AbortController | null>(null);
 
   const { toast } = useToast();
 
@@ -52,13 +68,50 @@ function HomeContent() {
     try {
       const savedPrompt = localStorage.getItem("promptui_prompt");
       const savedCode = localStorage.getItem("promptui_code");
+      const savedFiles = localStorage.getItem("promptui_files");
       if (savedPrompt) setPrompt(savedPrompt);
-      if (savedCode) {
+      if (savedFiles) {
+        try {
+          const parsed = JSON.parse(savedFiles);
+          setFiles(parsed);
+          setCode(parsed["/App.js"] || Object.values(parsed)[0] || DEFAULT_CODE);
+          setSandpackKey((k) => k + 1);
+          setHasGenerated(true);
+        } catch {
+          if (savedCode) {
+            setCode(savedCode);
+            setFiles({ "/App.js": savedCode });
+            setSandpackKey((k) => k + 1);
+            setHasGenerated(true);
+          }
+        }
+      } else if (savedCode) {
         setCode(savedCode);
+        setFiles({ "/App.js": savedCode });
         setSandpackKey((k) => k + 1);
+        setHasGenerated(true);
+      }
+
+      // Handle shared link query param
+      const params = new URLSearchParams(window.location.search);
+      const sharedCode = params.get("code");
+      if (sharedCode) {
+        try {
+          const decoded = decompressFromEncodedURIComponent(sharedCode);
+          if (decoded) {
+            setCode(decoded);
+            setFiles({ "/App.js": decoded });
+            setSandpackKey((k) => k + 1);
+            setHasGenerated(true);
+            // Clean URL
+            window.history.replaceState({}, "", "/");
+          }
+        } catch {
+          // Invalid shared code
+        }
       }
     } catch {
-      // localStorage may be unavailable in some environments
+      // localStorage may be unavailable
     }
   }, []);
 
@@ -67,10 +120,11 @@ function HomeContent() {
     try {
       localStorage.setItem("promptui_prompt", prompt);
       localStorage.setItem("promptui_code", code);
+      localStorage.setItem("promptui_files", JSON.stringify(files));
     } catch {
-      // Silently fail if storage is full or unavailable
+      // Silently fail
     }
-  }, [prompt, code]);
+  }, [prompt, code, files]);
 
   // Countdown Logic
   useEffect(() => {
@@ -89,65 +143,217 @@ function HomeContent() {
   // --- Handlers ---
 
   const handleGenerate = useCallback(async () => {
-    if (!prompt.trim() || isLoading || retryCountdown !== null) return;
+    const trimmed = prompt.trim();
+    if (!trimmed || isLoading || retryCountdown !== null) return;
+
+    // Abort any in-flight request
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
 
     setIsLoading(true);
     setError(null);
     setRetryCountdown(null);
+    setIsFixing(false);
+    setFixAttempt(0);
+    setLoadingStatus("Generating component...");
 
     try {
-      const res = await fetch("/api/generate", {
+      // Build request body
+      const body: Record<string, unknown> = {};
+      if (isIterating && hasGenerated) {
+        body.previousCode = code;
+        body.refinement = trimmed;
+      } else {
+        body.prompt = trimmed;
+      }
+
+      const res = await fetch("/api/generate-stream", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt: prompt.trim() }),
+        body: JSON.stringify(body),
+        signal: controller.signal,
       });
 
-      const data = await res.json();
-
       if (!res.ok) {
+        const data = await res.json();
         if (res.status === 429 && data.isRateLimit) {
           setRetryCountdown(15);
-          throw new Error(data.error);
         }
         throw new Error(data.error || "Failed to generate component.");
       }
 
-      setCode(data.code);
-      setSandpackKey((k) => k + 1);
-      setActiveTab("preview");
-      toast("Component generated!", "success");
+      // Read SSE stream
+      const reader = res.body!.getReader();
+      const decoder = new TextDecoder();
+      let accumulated = "";
+      let buffer = "";
 
-      // Save History
-      try {
-        const item = { prompt, code: data.code, timestamp: Date.now() };
-        const saved = localStorage.getItem("promptui_history");
-        const history = saved ? JSON.parse(saved) : [];
-        const newHistory = [item, ...history].slice(0, 50);
-        localStorage.setItem("promptui_history", JSON.stringify(newHistory));
-      } catch {
-        // History save failed, non-critical
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+
+        // Process complete SSE messages
+        const lines = buffer.split("\n");
+        buffer = lines.pop() || ""; // Keep incomplete line in buffer
+
+        for (const line of lines) {
+          if (!line.startsWith("data: ")) continue;
+          const payload = line.slice(6).trim();
+
+          if (payload === "[DONE]") {
+            // Stream complete — process final output
+            const finalCode = stripMarkdownFences(accumulated);
+            setCode(finalCode);
+            setFiles({ "/App.js": finalCode });
+
+            setSandpackKey((k) => k + 1);
+            setActiveTab("preview");
+            setHasGenerated(true);
+            toast("Component generated!", "success");
+
+            // Save History
+            try {
+              const item = { prompt: trimmed, code: accumulated, timestamp: Date.now() };
+              const saved = localStorage.getItem("promptui_history");
+              const history = saved ? JSON.parse(saved) : [];
+              const newHistory = [item, ...history].slice(0, 50);
+              localStorage.setItem("promptui_history", JSON.stringify(newHistory));
+              window.dispatchEvent(new Event("promptui_history_updated"));
+            } catch {
+              // History save failed
+            }
+            continue;
+          }
+
+          try {
+            const parsed = JSON.parse(payload);
+            if (parsed.error) {
+              if (parsed.isRateLimit) setRetryCountdown(15);
+              throw new Error(parsed.error);
+            }
+            if (parsed.text) {
+              accumulated += parsed.text;
+            }
+          } catch (e) {
+            if (e instanceof SyntaxError) continue; // Skip malformed JSON
+            throw e;
+          }
+        }
       }
     } catch (err) {
+      if (err instanceof Error && err.name === "AbortError") return;
       const message =
         err instanceof Error ? err.message : "Something went wrong.";
       setError(message);
       toast(message, "error");
     } finally {
       setIsLoading(false);
+      abortRef.current = null;
     }
-  }, [prompt, isLoading, retryCountdown, toast]);
+  }, [prompt, isLoading, retryCountdown, toast, code, isIterating, hasGenerated]);
 
-  const handleCopy = useCallback(() => {
-    navigator.clipboard.writeText(code).catch(() => {
-      // Fallback for browsers that don't support clipboard API
-      const textarea = document.createElement("textarea");
-      textarea.value = code;
-      document.body.appendChild(textarea);
-      textarea.select();
-      document.execCommand("copy");
-      document.body.removeChild(textarea);
-    });
-    setCopied(true);
+  // Cancel generation
+  const handleCancel = useCallback(() => {
+    abortRef.current?.abort();
+    setIsLoading(false);
+    setIsFixing(false);
+    setFixAttempt(0);
+    setLoadingStatus(undefined);
+  }, []);
+
+  // Auto-fix: when Sandpack detects errors, send code + error to AI for repair
+  const MAX_FIX_ATTEMPTS = 3;
+
+  const handleAutoFix = useCallback(async (errors: string[]) => {
+    // Guard: don't fix if already fixing, loading, or no generation happened
+    if (isFixing || isLoading || !hasGenerated) return;
+    // Guard: respect max attempts per generation cycle
+    if (fixAttempt >= MAX_FIX_ATTEMPTS) return;
+
+    const currentAttempt = fixAttempt + 1;
+    setIsFixing(true);
+    setFixAttempt(currentAttempt);
+    setLoadingStatus(`Auto-fixing errors (attempt ${currentAttempt}/${MAX_FIX_ATTEMPTS})...`);
+
+    try {
+      const errorText = errors.slice(0, 3).join("\n");
+
+      const res = await fetch("/api/generate-stream", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          previousCode: code,
+          refinement: `The generated code has the following runtime errors. Please fix ALL errors and return the complete corrected code:\n\n${errorText}`,
+        }),
+      });
+
+      if (!res.ok) {
+        throw new Error("Fix request failed");
+      }
+
+      const reader = res.body!.getReader();
+      const decoder = new TextDecoder();
+      let accumulated = "";
+      let buffer = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() || "";
+
+        for (const line of lines) {
+          if (!line.startsWith("data: ")) continue;
+          const payload = line.slice(6).trim();
+
+          if (payload === "[DONE]") {
+            const finalCode = stripMarkdownFences(accumulated);
+            setCode(finalCode);
+            setFiles({ "/App.js": finalCode });
+
+            setSandpackKey((k) => k + 1);
+            toast(`Auto-fix applied (attempt ${currentAttempt})`, "success");
+            continue;
+          }
+
+          try {
+            const parsed = JSON.parse(payload);
+            if (parsed.text) accumulated += parsed.text;
+          } catch {
+            // skip malformed
+          }
+        }
+      }
+    } catch {
+      toast("Auto-fix failed", "error");
+    } finally {
+      setIsFixing(false);
+      setLoadingStatus(undefined);
+    }
+  }, [isFixing, isLoading, hasGenerated, fixAttempt, code, toast]);
+
+  // Copy handler
+  const handleCopy = useCallback(async () => {
+    try {
+      await navigator.clipboard.writeText(code);
+      setCopied(true);
+    } catch {
+      try {
+        const textarea = document.createElement("textarea");
+        textarea.value = code;
+        document.body.appendChild(textarea);
+        textarea.select();
+        const success = document.execCommand("copy");
+        document.body.removeChild(textarea);
+        if (success) setCopied(true);
+      } catch {
+        return;
+      }
+    }
     setTimeout(() => setCopied(false), 2000);
   }, [code]);
 
@@ -180,8 +386,10 @@ function HomeContent() {
         onSelect={(item) => {
           setPrompt(item.prompt);
           setCode(item.code);
+          setFiles({ "/App.js": item.code });
           setSandpackKey((k) => k + 1);
           setShowHistory(false);
+          setHasGenerated(true);
           toast("Prompt restored from history", "info");
         }}
       />
@@ -193,8 +401,8 @@ function HomeContent() {
           <button
             onClick={() => setActiveTab("prompt")}
             className={`flex-1 py-2 sm:py-2.5 text-xs font-medium rounded-md transition-all duration-200 ${activeTab === "prompt"
-                ? "bg-zinc-800 text-white border border-white/10 shadow-lg"
-                : "text-zinc-500 hover:text-zinc-300"
+              ? "bg-zinc-800 text-white border border-white/10 shadow-lg"
+              : "text-zinc-500 hover:text-zinc-300"
               }`}
           >
             ✏️ Prompt
@@ -202,8 +410,8 @@ function HomeContent() {
           <button
             onClick={() => setActiveTab("preview")}
             className={`flex-1 py-2 sm:py-2.5 text-xs font-medium rounded-md transition-all duration-200 ${activeTab === "preview"
-                ? "bg-zinc-800 text-white border border-white/10 shadow-lg"
-                : "text-zinc-500 hover:text-zinc-300"
+              ? "bg-zinc-800 text-white border border-white/10 shadow-lg"
+              : "text-zinc-500 hover:text-zinc-300"
               }`}
           >
             👁️ Preview
@@ -219,19 +427,31 @@ function HomeContent() {
                 prompt={prompt}
                 setPrompt={setPrompt}
                 onSubmit={handleGenerate}
+                onCancel={handleCancel}
                 isLoading={isLoading}
                 retryCountdown={retryCountdown}
                 error={error}
+                isIterating={isIterating}
+                onToggleIterate={() => setIsIterating((v) => !v)}
+                hasGenerated={hasGenerated}
               />
             }
             rightPanel={
-              <PreviewPanel
-                code={code}
-                sandpackKey={sandpackKey}
-                copied={copied}
-                onCopy={handleCopy}
-                onToast={toast}
-              />
+              <ErrorBoundary>
+                <PreviewPanel
+                  code={code}
+                  files={files}
+                  sandpackKey={sandpackKey}
+                  copied={copied}
+                  isLoading={isLoading}
+                  isFixing={isFixing}
+                  fixAttempt={fixAttempt}
+                  loadingStatus={loadingStatus}
+                  onCopy={handleCopy}
+                  onSandpackError={handleAutoFix}
+                  onToast={toast}
+                />
+              </ErrorBoundary>
             }
           />
         </div>
@@ -246,22 +466,34 @@ function HomeContent() {
               prompt={prompt}
               setPrompt={setPrompt}
               onSubmit={handleGenerate}
+              onCancel={handleCancel}
               isLoading={isLoading}
               retryCountdown={retryCountdown}
               error={error}
+              isIterating={isIterating}
+              onToggleIterate={() => setIsIterating((v) => !v)}
+              hasGenerated={hasGenerated}
             />
           </div>
           <div
             className={`absolute inset-0 z-10 bg-black ${activeTab === "preview" ? "block" : "hidden"
               }`}
           >
-            <PreviewPanel
-              code={code}
-              sandpackKey={sandpackKey}
-              copied={copied}
-              onCopy={handleCopy}
-              onToast={toast}
-            />
+            <ErrorBoundary>
+              <PreviewPanel
+                code={code}
+                files={files}
+                sandpackKey={sandpackKey}
+                copied={copied}
+                isLoading={isLoading}
+                isFixing={isFixing}
+                fixAttempt={fixAttempt}
+                loadingStatus={loadingStatus}
+                onCopy={handleCopy}
+                onSandpackError={handleAutoFix}
+                onToast={toast}
+              />
+            </ErrorBoundary>
           </div>
         </div>
       </main>

@@ -9,6 +9,7 @@ import {
 import { ArrowLeft, Loader2, RefreshCw } from "lucide-react";
 import Link from "next/link";
 import { motion } from "framer-motion";
+import { SANDPACK_DEPS, SANDPACK_RESOURCES } from "@/lib/sandpack-config";
 
 export default function PreviewPage() {
     const [code, setCode] = useState<string | null>(null);
@@ -53,14 +54,10 @@ export default function PreviewPage() {
                     "/App.js": code,
                 }}
                 customSetup={{
-                    dependencies: {
-                        "lucide-react": "latest",
-                        clsx: "latest",
-                        "tailwind-merge": "latest",
-                    },
+                    dependencies: SANDPACK_DEPS,
                 }}
                 options={{
-                    externalResources: ["https://cdn.tailwindcss.com"],
+                    externalResources: SANDPACK_RESOURCES,
                 }}
             >
                 <SandpackLayout

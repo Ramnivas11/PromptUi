@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useCallback, createContext, useContext } from "react";
+import React, { useState, useCallback, useRef, createContext, useContext } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Check, X, Info, AlertTriangle } from "lucide-react";
 
@@ -38,13 +38,12 @@ const BG_MAP = {
     warning: "border-amber-500/20 bg-amber-500/10",
 };
 
-let toastId = 0;
-
 export function ToastProvider({ children }: { children: React.ReactNode }) {
     const [toasts, setToasts] = useState<ToastMessage[]>([]);
+    const toastIdRef = useRef(0);
 
     const toast = useCallback((message: string, type: ToastType = "success") => {
-        const id = ++toastId;
+        const id = ++toastIdRef.current;
         setToasts((prev) => [...prev, { id, message, type }]);
         setTimeout(() => {
             setToasts((prev) => prev.filter((t) => t.id !== id));

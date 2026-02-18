@@ -19,7 +19,7 @@ interface HistorySidebarProps {
 export function HistorySidebar({ isOpen, onClose, onSelect }: HistorySidebarProps) {
     const [history, setHistory] = useState<HistoryItem[]>([]);
 
-    useEffect(() => {
+    const loadHistory = () => {
         const saved = localStorage.getItem("promptui_history");
         if (saved) {
             try {
@@ -28,7 +28,19 @@ export function HistorySidebar({ isOpen, onClose, onSelect }: HistorySidebarProp
                 console.error("Failed to parse history", e);
             }
         }
+    };
+
+    // Load when sidebar opens
+    useEffect(() => {
+        if (isOpen) loadHistory();
     }, [isOpen]);
+
+    // Issue #8: Also refresh when history is updated from the main page
+    useEffect(() => {
+        const handler = () => loadHistory();
+        window.addEventListener("promptui_history_updated", handler);
+        return () => window.removeEventListener("promptui_history_updated", handler);
+    }, []);
 
     const clearHistory = () => {
         setHistory([]);

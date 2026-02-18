@@ -11,17 +11,15 @@
   "dependencies": {
     "@codesandbox/sandpack-react": "^2.20.0",
     "@google/generative-ai": "^0.24.1",
-    "@studio-freight/lenis": "^1.0.42",
-    "@studio-freight/react-lenis": "^0.0.47",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "framer-motion": "^12.34.0",
+    "jszip": "^3.10.1",
     "lucide-react": "^0.564.0",
     "lz-string": "^1.5.0",
     "next": "14.2.35",
     "react": "^18",
     "react-dom": "^18",
-    "react-resizable-panels": "^4.6.4",
     "tailwind-merge": "^3.4.1"
   },
   "devDependencies": {
