@@ -21,13 +21,12 @@ import {
     Monitor,
     Tablet,
     Smartphone,
-    Share2,
     ChevronDown,
     FolderArchive,
     FileCode,
     Wrench,
 } from "lucide-react";
-import Link from "next/link";
+
 import { compressToEncodedURIComponent, compressToBase64 } from "lz-string";
 import { SANDPACK_DEPS, SANDPACK_RESOURCES } from "@/lib/sandpack-config";
 import { exportAsViteProject } from "@/lib/export-project";
@@ -163,25 +162,21 @@ export function PreviewPanel({
         onToast?.("Code copied to clipboard!", "success");
     }, [onCopy, onToast]);
 
-    const handleShare = useCallback(() => {
+
+
+    const handleFullscreen = useCallback(() => {
         try {
             const compressed = compressToEncodedURIComponent(code);
-            const url = `${window.location.origin}?code=${compressed}`;
-            navigator.clipboard.writeText(url).then(() => {
-                onToast?.("Share link copied to clipboard!", "success");
-            }).catch(() => {
-                const textarea = document.createElement("textarea");
-                textarea.value = url;
-                document.body.appendChild(textarea);
-                textarea.select();
-                document.execCommand("copy");
-                document.body.removeChild(textarea);
-                onToast?.("Share link copied!", "success");
-            });
+            const url = `/preview?code=${compressed}`;
+            window.open(url, "_blank");
         } catch {
-            onToast?.("Failed to create share link", "error");
+            // Fallback: ensure localStorage is fresh, then open without query
+            try {
+                localStorage.setItem("promptui_code", code);
+            } catch { /* ignore */ }
+            window.open("/preview", "_blank");
         }
-    }, [code, onToast]);
+    }, [code]);
 
     const handleOpenInCodeSandbox = useCallback(() => {
         try {
@@ -284,17 +279,17 @@ export function PreviewPanel({
     return (
         <div className="flex flex-col h-full min-h-0 bg-zinc-950 overflow-hidden">
             {/* ------- Toolbar ------- */}
-            <div className="flex-shrink-0 px-3 sm:px-5 py-2.5 sm:py-3 border-b border-white/5 flex items-center justify-between bg-zinc-950 gap-2">
-                <h2 className="text-xs sm:text-sm font-semibold text-zinc-100 flex items-center gap-2 tracking-wide uppercase whitespace-nowrap">
-                    <Code2 size={14} className="text-amber-500" />
-                    <span className="hidden xs:inline">Live</span> Preview
+            <div className="flex-shrink-0 px-2 sm:px-4 md:px-5 py-2 sm:py-2.5 border-b border-white/5 flex items-center justify-between bg-zinc-950 gap-1.5 sm:gap-2 min-w-0">
+                <h2 className="text-[11px] sm:text-xs md:text-sm font-semibold text-zinc-100 flex items-center gap-1.5 sm:gap-2 tracking-wide uppercase whitespace-nowrap flex-shrink-0">
+                    <Code2 size={14} className="text-amber-500 flex-shrink-0" />
+                    <span className="hidden sm:inline">Live</span> Preview
                     {isFixing && (
-                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-orange-500/10 border border-orange-500/30 text-orange-400 text-[9px] font-bold uppercase tracking-wider animate-pulse">
-                            <Wrench size={9} /> Fixing
+                        <span className="inline-flex items-center gap-1 px-1 py-0.5 rounded bg-orange-500/10 border border-orange-500/30 text-orange-400 text-[8px] sm:text-[9px] font-bold uppercase tracking-wider animate-pulse">
+                            <Wrench size={8} /> Fixing
                         </span>
                     )}
                 </h2>
-                <div className="flex items-center gap-1 sm:gap-1.5 flex-wrap justify-end">
+                <div className="flex items-center gap-1 sm:gap-1.5 flex-nowrap justify-end min-w-0 overflow-x-auto">
                     {/* Viewport Toggle */}
                     <div className="hidden md:flex items-center gap-0.5 bg-zinc-900 rounded-lg p-0.5 border border-white/5">
                         {(Object.keys(VIEWPORTS) as ViewportKey[]).map((key) => {
@@ -323,11 +318,7 @@ export function PreviewPanel({
                         <span className="hidden sm:inline">{showEditor ? "Hide" : "Code"}</span>
                     </button>
 
-                    {/* Share */}
-                    <button onClick={handleShare} className={btnClass} title="Share with Link">
-                        <Share2 size={12} />
-                        <span className="hidden md:inline">Share</span>
-                    </button>
+
 
                     {/* CodeSandbox */}
                     <button onClick={handleOpenInCodeSandbox} className={btnClass} title="Open in CodeSandbox">
@@ -336,9 +327,9 @@ export function PreviewPanel({
                     </button>
 
                     {/* Fullscreen */}
-                    <Link href="/preview" target="_blank" className={btnClass} title="Open Fullscreen">
+                    <button onClick={handleFullscreen} className={btnClass} title="Open Fullscreen">
                         <Maximize2 size={12} />
-                    </Link>
+                    </button>
 
                     {/* Download Dropdown */}
                     <div className="relative">

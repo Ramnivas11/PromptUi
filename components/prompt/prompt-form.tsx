@@ -57,15 +57,15 @@ export function PromptForm({
     return (
         <div className="flex flex-col h-full bg-black">
             {/* Header */}
-            <div className="flex-shrink-0 px-4 sm:px-6 py-3 sm:py-4 border-b border-white/5 bg-zinc-950">
-                <h2 className="text-xs sm:text-sm font-semibold text-zinc-100 flex items-center gap-2 tracking-wide uppercase">
-                    <Wand2 size={14} className="text-amber-500" />
+            <div className="flex-shrink-0 px-3 sm:px-6 py-2.5 sm:py-4 border-b border-white/5 bg-zinc-950">
+                <h2 className="text-[11px] sm:text-xs md:text-sm font-semibold text-zinc-100 flex items-center gap-1.5 sm:gap-2 tracking-wide uppercase">
+                    <Wand2 size={13} className="text-amber-500 flex-shrink-0 sm:w-[14px] sm:h-[14px]" />
                     {isIterating ? "Refine Component" : "Component Prompt"}
                 </h2>
             </div>
 
             {/* Content */}
-            <div className="flex-1 p-4 sm:p-5 flex flex-col gap-3 sm:gap-4 min-h-0 overflow-y-auto">
+            <div className="flex-1 p-3 sm:p-5 flex flex-col gap-2.5 sm:gap-4 min-h-0 overflow-y-auto">
                 {/* Iterate Mode Banner */}
                 <AnimatePresence>
                     {isIterating && hasGenerated && (
@@ -99,7 +99,7 @@ export function PromptForm({
                         }
                         maxLength={MAX_CHARS + 50}
                         className={cn(
-                            "w-full h-[140px] sm:h-[180px] rounded-lg bg-zinc-900/50 border p-3 sm:p-4 text-sm text-zinc-200 placeholder-zinc-600 resize-none focus:outline-none focus:ring-1 transition-all duration-200",
+                            "w-full h-[120px] sm:h-[180px] rounded-lg bg-zinc-900/50 border p-3 sm:p-4 text-[13px] sm:text-sm text-zinc-200 placeholder-zinc-600 resize-none focus:outline-none focus:ring-1 transition-all duration-200",
                             isOverLimit
                                 ? "border-red-500/50 focus:ring-red-500/50 focus:border-red-500/50"
                                 : "border-white/10 focus:ring-amber-500/50 focus:border-amber-500/50"
@@ -185,7 +185,7 @@ export function PromptForm({
                         onClick={onSubmit}
                         disabled={isLoading || !prompt.trim() || retryCountdown !== null || isOverLimit}
                         className={cn(
-                            "flex-1 py-3 sm:py-3.5 rounded-lg font-semibold text-sm flex items-center justify-center gap-2 text-black shadow-lg transition-all duration-200 relative overflow-hidden group",
+                            "flex-1 py-2.5 sm:py-3.5 rounded-lg font-semibold text-[13px] sm:text-sm flex items-center justify-center gap-2 text-black shadow-lg transition-all duration-200 relative overflow-hidden group",
                             retryCountdown !== null || isOverLimit
                                 ? "bg-zinc-800 cursor-not-allowed text-zinc-500 shadow-none"
                                 : isLoading

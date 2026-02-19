@@ -9,6 +9,7 @@ import {
 import { ArrowLeft, Loader2, RefreshCw } from "lucide-react";
 import Link from "next/link";
 import { motion } from "framer-motion";
+import { decompressFromEncodedURIComponent } from "lz-string";
 import { SANDPACK_DEPS, SANDPACK_RESOURCES } from "@/lib/sandpack-config";
 
 export default function PreviewPage() {
@@ -16,6 +17,25 @@ export default function PreviewPage() {
     const [previewKey, setPreviewKey] = useState(0);
 
     useEffect(() => {
+        // Priority 1: Read code from URL query parameter
+        const params = new URLSearchParams(window.location.search);
+        const compressedCode = params.get("code");
+
+        if (compressedCode) {
+            try {
+                const decoded = decompressFromEncodedURIComponent(compressedCode);
+                if (decoded) {
+                    setCode(decoded);
+                    // Clean URL without reloading
+                    window.history.replaceState({}, "", "/preview");
+                    return;
+                }
+            } catch {
+                // Fall through to localStorage
+            }
+        }
+
+        // Priority 2: Fall back to localStorage
         const savedCode = localStorage.getItem("promptui_code");
         if (savedCode) {
             setCode(savedCode);

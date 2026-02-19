@@ -397,10 +397,10 @@ function HomeContent() {
       {/* Main Layout Area */}
       <main className="flex-1 min-h-0 flex flex-col lg:flex-row relative">
         {/* Mobile Tabs */}
-        <div className="lg:hidden flex-shrink-0 bg-zinc-950 border-b border-white/10 p-1.5 sm:p-2 flex gap-1.5 sm:gap-2">
+        <div className="lg:hidden flex-shrink-0 bg-zinc-950 border-b border-white/10 p-1 sm:p-1.5 flex gap-1 sm:gap-1.5">
           <button
             onClick={() => setActiveTab("prompt")}
-            className={`flex-1 py-2 sm:py-2.5 text-xs font-medium rounded-md transition-all duration-200 ${activeTab === "prompt"
+            className={`flex-1 py-2.5 text-[11px] sm:text-xs font-medium rounded-md transition-all duration-200 ${activeTab === "prompt"
               ? "bg-zinc-800 text-white border border-white/10 shadow-lg"
               : "text-zinc-500 hover:text-zinc-300"
               }`}
@@ -409,7 +409,7 @@ function HomeContent() {
           </button>
           <button
             onClick={() => setActiveTab("preview")}
-            className={`flex-1 py-2 sm:py-2.5 text-xs font-medium rounded-md transition-all duration-200 ${activeTab === "preview"
+            className={`flex-1 py-2.5 text-[11px] sm:text-xs font-medium rounded-md transition-all duration-200 ${activeTab === "preview"
               ? "bg-zinc-800 text-white border border-white/10 shadow-lg"
               : "text-zinc-500 hover:text-zinc-300"
               }`}

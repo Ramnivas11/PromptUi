@@ -9,19 +9,19 @@ interface HeaderProps {
 
 export function Header({ onHistoryClick }: HeaderProps) {
     return (
-        <header className="flex-shrink-0 h-14 border-b border-white/10 bg-zinc-950 flex items-center justify-between px-4 sm:px-6 z-50">
-            <div className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-lg bg-amber-500 flex items-center justify-center shadow-lg shadow-amber-500/20">
-                    <Code2 size={18} className="text-black fill-current" />
+        <header className="flex-shrink-0 h-12 sm:h-14 border-b border-white/10 bg-zinc-950 flex items-center justify-between px-3 sm:px-6 z-50">
+            <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+                <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-amber-500 flex items-center justify-center shadow-lg shadow-amber-500/20 flex-shrink-0">
+                    <Code2 size={16} className="text-black fill-current sm:w-[18px] sm:h-[18px]" />
                 </div>
-                <span className="text-lg font-bold tracking-tight text-white">
+                <span className="text-base sm:text-lg font-bold tracking-tight text-white whitespace-nowrap">
                     Prompt<span className="text-amber-500">UI</span>
                 </span>
                 <span className="hidden sm:inline-flex items-center px-2 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-500 text-[10px] font-bold uppercase tracking-wider">
                     Beta
                 </span>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
                 {/* Keyboard Shortcut Hint */}
                 <div className="hidden lg:flex items-center gap-1.5 text-[10px] text-zinc-500 mr-2">
                     <Keyboard size={12} />
@@ -33,10 +33,10 @@ export function Header({ onHistoryClick }: HeaderProps) {
 
                 {/* GitHub link — inline SVG so it always works */}
                 <a
-                    href="https://github.com/"
+                    href="https://github.com/Ramnivas11/PromptUI"
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="p-2 rounded-md bg-white/5 hover:bg-white/10 text-zinc-400 hover:text-white transition-colors border border-white/5 hover:border-white/10"
+                    className="p-1.5 sm:p-2 rounded-md bg-white/5 hover:bg-white/10 text-zinc-400 hover:text-white transition-colors border border-white/5 hover:border-white/10"
                     title="GitHub"
                 >
                     <svg
@@ -52,10 +52,10 @@ export function Header({ onHistoryClick }: HeaderProps) {
 
                 <button
                     onClick={onHistoryClick}
-                    className="p-2 rounded-md bg-white/5 hover:bg-white/10 text-zinc-400 hover:text-white transition-colors border border-white/5 hover:border-white/10"
+                    className="p-1.5 sm:p-2 rounded-md bg-white/5 hover:bg-white/10 text-zinc-400 hover:text-white transition-colors border border-white/5 hover:border-white/10"
                     title="History"
                 >
-                    <History size={18} />
+                    <History size={16} className="sm:w-[18px] sm:h-[18px]" />
                 </button>
             </div>
         </header>
