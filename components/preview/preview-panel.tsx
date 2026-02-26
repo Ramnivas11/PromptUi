@@ -28,6 +28,8 @@ import {
 } from "lucide-react";
 
 import { compressToEncodedURIComponent, compressToBase64 } from "lz-string";
+// NOTE: compressToEncodedURIComponent is used by handleFullscreen
+// compressToBase64 is used by handleOpenInCodeSandbox
 import { SANDPACK_DEPS, SANDPACK_RESOURCES } from "@/lib/sandpack-config";
 import { exportAsViteProject } from "@/lib/export-project";
 
@@ -116,6 +118,8 @@ export function PreviewPanel({
     const [showEditor, setShowEditor] = useState(false);
     const [viewport, setViewport] = useState<ViewportKey>("full");
     const [showDownloadMenu, setShowDownloadMenu] = useState(false);
+    const downloadBtnRef = useRef<HTMLButtonElement>(null);
+    const [menuPos, setMenuPos] = useState({ top: 0, right: 0 });
 
     // Determine sandpack files
     const sandpackFiles = files && Object.keys(files).length > 1
@@ -125,7 +129,7 @@ export function PreviewPanel({
     /* -------- Handlers -------- */
 
     const handleDownloadJSX = useCallback(() => {
-        const blob = new Blob([code], { type: "text/plain" });
+        const blob = new Blob([code], { type: "text/javascript" });
         const url = URL.createObjectURL(blob);
         const a = document.createElement("a");
         a.href = url;
@@ -133,7 +137,8 @@ export function PreviewPanel({
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
-        URL.revokeObjectURL(url);
+        // Delay revoking the URL to give the browser time to start the download
+        setTimeout(() => URL.revokeObjectURL(url), 1500);
         onToast?.("JSX file downloaded!", "success");
         setShowDownloadMenu(false);
     }, [code, onToast]);
@@ -149,7 +154,8 @@ export function PreviewPanel({
             document.body.appendChild(a);
             a.click();
             document.body.removeChild(a);
-            URL.revokeObjectURL(url);
+            // Delay revoking the URL to give the browser time to start the download
+            setTimeout(() => URL.revokeObjectURL(url), 1500);
             onToast?.("Vite project downloaded!", "success");
         } catch {
             onToast?.("Failed to export project", "error");
@@ -191,9 +197,9 @@ export function PreviewPanel({
                                 react: "^18.0.0",
                                 "react-dom": "^18.0.0",
                                 "react-scripts": "^5.0.0",
-                                "lucide-react": "latest",
-                                clsx: "latest",
-                                "tailwind-merge": "latest",
+                                "lucide-react": "^0.564.0",
+                                clsx: "^2.1.1",
+                                "tailwind-merge": "^3.4.1",
                             },
                         },
                         null,
@@ -209,15 +215,29 @@ export function PreviewPanel({
                 },
             };
 
-            const compressed = compressToBase64(JSON.stringify({ files: csFiles }))
-                .replace(/\+/g, "-")
-                .replace(/\//g, "_")
-                .replace(/=+$/, "");
+            // Use POST form submission instead of GET URL to avoid URL length limits
+            const compressed = compressToBase64(JSON.stringify({ files: csFiles }));
+            const form = document.createElement("form");
+            form.method = "POST";
+            form.action = "https://codesandbox.io/api/v1/sandboxes/define";
+            form.target = "_blank";
 
-            window.open(
-                `https://codesandbox.io/api/v1/sandboxes/define?parameters=${compressed}&query=file=/src/App.js`,
-                "_blank"
-            );
+            const paramInput = document.createElement("input");
+            paramInput.type = "hidden";
+            paramInput.name = "parameters";
+            paramInput.value = compressed;
+            form.appendChild(paramInput);
+
+            const queryInput = document.createElement("input");
+            queryInput.type = "hidden";
+            queryInput.name = "query";
+            queryInput.value = "file=/src/App.js";
+            form.appendChild(queryInput);
+
+            document.body.appendChild(form);
+            form.submit();
+            document.body.removeChild(form);
+
             onToast?.("Opening in CodeSandbox...", "info");
         } catch {
             onToast?.("Failed to open CodeSandbox", "error");
@@ -334,38 +354,51 @@ export function PreviewPanel({
                     {/* Download Dropdown */}
                     <div className="relative">
                         <button
-                            onClick={() => setShowDownloadMenu((v) => !v)}
+                            ref={downloadBtnRef}
+                            onClick={() => {
+                                if (!showDownloadMenu && downloadBtnRef.current) {
+                                    const rect = downloadBtnRef.current.getBoundingClientRect();
+                                    setMenuPos({
+                                        top: rect.bottom + 4,
+                                        right: window.innerWidth - rect.right,
+                                    });
+                                }
+                                setShowDownloadMenu((v) => !v);
+                            }}
                             className={btnClass}
                             title="Download"
                         >
                             <Download size={12} />
                             <ChevronDown size={10} />
                         </button>
-                        {showDownloadMenu && (
-                            <>
-                                <div
-                                    className="fixed inset-0 z-40"
-                                    onClick={() => setShowDownloadMenu(false)}
-                                />
-                                <div className="absolute right-0 top-full mt-1 z-50 w-48 bg-zinc-900 border border-white/10 rounded-lg shadow-xl overflow-hidden">
-                                    <button
-                                        onClick={handleDownloadJSX}
-                                        className="flex items-center gap-2 w-full px-3 py-2.5 text-xs text-zinc-300 hover:bg-zinc-800 hover:text-white transition-colors"
-                                    >
-                                        <FileCode size={14} />
-                                        Download JSX
-                                    </button>
-                                    <button
-                                        onClick={handleDownloadProject}
-                                        className="flex items-center gap-2 w-full px-3 py-2.5 text-xs text-zinc-300 hover:bg-zinc-800 hover:text-white transition-colors border-t border-white/5"
-                                    >
-                                        <FolderArchive size={14} />
-                                        Download Vite Project
-                                    </button>
-                                </div>
-                            </>
-                        )}
                     </div>
+                    {showDownloadMenu && (
+                        <>
+                            <div
+                                className="fixed inset-0 z-[9998]"
+                                onClick={() => setShowDownloadMenu(false)}
+                            />
+                            <div
+                                className="fixed z-[9999] w-48 bg-zinc-900 border border-white/10 rounded-lg shadow-xl overflow-hidden"
+                                style={{ top: menuPos.top, right: menuPos.right }}
+                            >
+                                <button
+                                    onClick={(e) => { e.stopPropagation(); handleDownloadJSX(); }}
+                                    className="flex items-center gap-2 w-full px-3 py-2.5 text-xs text-zinc-300 hover:bg-zinc-800 hover:text-white transition-colors"
+                                >
+                                    <FileCode size={14} />
+                                    Download JSX
+                                </button>
+                                <button
+                                    onClick={(e) => { e.stopPropagation(); handleDownloadProject(); }}
+                                    className="flex items-center gap-2 w-full px-3 py-2.5 text-xs text-zinc-300 hover:bg-zinc-800 hover:text-white transition-colors border-t border-white/5"
+                                >
+                                    <FolderArchive size={14} />
+                                    Download Vite Project
+                                </button>
+                            </div>
+                        </>
+                    )}
 
                     {/* Copy */}
                     <button
