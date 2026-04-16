@@ -9,39 +9,40 @@ interface HeaderProps {
 
 export function Header({ onHistoryClick }: HeaderProps) {
     return (
-        <header className="flex-shrink-0 h-12 sm:h-14 border-b border-white/10 bg-zinc-950 flex items-center justify-between px-3 sm:px-6 z-50">
-            <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-                <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-amber-500 flex items-center justify-center shadow-lg shadow-amber-500/20 flex-shrink-0">
-                    <Code2 size={16} className="text-black fill-current sm:w-[18px] sm:h-[18px]" />
+        <header className="flex-shrink-0 h-20 border-b border-border bg-transparent flex items-center justify-between px-8 md:px-16 z-50">
+            <div className="flex items-center gap-6 min-w-0">
+                <div className="flex items-center justify-center p-2 border border-border flex-shrink-0">
+                    <Code2 size={24} className="text-charcoal stroke-[1.5]" />
                 </div>
-                <span className="text-base sm:text-lg font-bold tracking-tight text-white whitespace-nowrap">
-                    Prompt<span className="text-amber-500">UI</span>
+                <span className="text-2xl tracking-tight text-foreground whitespace-nowrap">
+                    <span className="font-editorial capitalize">Prompt</span>
+                    <span className="font-sans uppercase tracking-widest text-xs ml-1 text-gold">UI</span>
                 </span>
-                <span className="hidden sm:inline-flex items-center px-2 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-500 text-[10px] font-bold uppercase tracking-wider">
-                    Beta
+                <span className="hidden sm:inline-flex items-center px-3 py-1 bg-transparent text-muted-foreground text-[10px] uppercase tracking-[0.25em] border border-border">
+                    BETA
                 </span>
             </div>
-            <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
+            <div className="flex items-center gap-6 flex-shrink-0">
                 {/* Keyboard Shortcut Hint */}
-                <div className="hidden lg:flex items-center gap-1.5 text-[10px] text-zinc-500 mr-2">
-                    <Keyboard size={12} />
-                    <kbd className="px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-400 font-mono text-[9px]">
-                        Ctrl+↵
+                <div className="hidden lg:flex items-center gap-3 text-[10px] uppercase tracking-[0.2em] text-muted-foreground mr-4">
+                    <Keyboard size={14} className="stroke-[1.5]" />
+                    <kbd className="px-2 py-1 border border-border/50 text-muted-foreground font-sans tracking-widest">
+                        CTRL+↵
                     </kbd>
-                    <span>to generate</span>
+                    <span>To Generate</span>
                 </div>
 
-                {/* GitHub link — inline SVG so it always works */}
+                {/* GitHub link */}
                 <a
                     href="https://github.com/Ramnivas11/PromptUI"
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="p-1.5 sm:p-2 rounded-md bg-white/5 hover:bg-white/10 text-zinc-400 hover:text-white transition-colors border border-white/5 hover:border-white/10"
+                    className="p-3 border border-transparent hover:border-border text-muted-foreground hover:text-charcoal transition-all duration-500 ease-out"
                     title="GitHub"
                 >
                     <svg
-                        width="16"
-                        height="16"
+                        width="18"
+                        height="18"
                         viewBox="0 0 24 24"
                         fill="currentColor"
                         xmlns="http://www.w3.org/2000/svg"
@@ -52,10 +53,12 @@ export function Header({ onHistoryClick }: HeaderProps) {
 
                 <button
                     onClick={onHistoryClick}
-                    className="p-1.5 sm:p-2 rounded-md bg-white/5 hover:bg-white/10 text-zinc-400 hover:text-white transition-colors border border-white/5 hover:border-white/10"
+                    className="group relative overflow-hidden px-8 py-3 border border-border bg-transparent text-charcoal transition-all duration-500 ease-out flex items-center gap-3"
                     title="History"
                 >
-                    <History size={16} className="sm:w-[18px] sm:h-[18px]" />
+                    <span className="absolute inset-0 bg-[#A0A0A0] translate-x-[-100%] group-hover:translate-x-0 transition-transform duration-500 ease-[cubic-bezier(0.25,0.46,0.45,0.94)] z-0"></span>
+                    <History size={16} className="relative z-10 stroke-[1.5] group-hover:text-white transition-colors duration-500 delay-100" />
+                    <span className="hidden sm:inline relative z-10 text-xs tracking-[0.2em] uppercase font-medium group-hover:text-white transition-colors duration-500 delay-100">History</span>
                 </button>
             </div>
         </header>

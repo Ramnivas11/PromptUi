@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { History, X, Clock, ChevronRight, Trash2 } from "lucide-react";
+import { History, X, ChevronRight, Trash2 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
 interface HistoryItem {
@@ -30,12 +30,10 @@ export function HistorySidebar({ isOpen, onClose, onSelect }: HistorySidebarProp
         }
     };
 
-    // Load when sidebar opens
     useEffect(() => {
         if (isOpen) loadHistory();
     }, [isOpen]);
 
-    // Issue #8: Also refresh when history is updated from the main page
     useEffect(() => {
         const handler = () => loadHistory();
         window.addEventListener("promptui_history_updated", handler);
@@ -51,13 +49,14 @@ export function HistorySidebar({ isOpen, onClose, onSelect }: HistorySidebarProp
         <AnimatePresence>
             {isOpen && (
                 <>
-                    {/* Backdrop — visible on all screen sizes */}
+                    {/* Backdrop */}
                     <motion.div
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
                         exit={{ opacity: 0 }}
+                        transition={{ duration: 0.7, ease: [0.25, 0.46, 0.45, 0.94] }}
                         onClick={onClose}
-                        className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40"
+                        className="fixed inset-0 bg-charcoal/20 backdrop-blur-sm z-40"
                     />
 
                     {/* Sidebar Panel */}
@@ -65,29 +64,30 @@ export function HistorySidebar({ isOpen, onClose, onSelect }: HistorySidebarProp
                         initial={{ x: "-100%" }}
                         animate={{ x: 0 }}
                         exit={{ x: "-100%" }}
-                        transition={{ type: "spring", damping: 25, stiffness: 200 }}
-                        className="fixed left-0 top-0 bottom-0 w-[280px] sm:w-[320px] bg-black border-r border-white/10 z-50 flex flex-col shadow-2xl"
+                        transition={{ duration: 0.7, ease: [0.25, 0.46, 0.45, 0.94] }}
+                        className="fixed left-0 top-0 bottom-0 w-[85vw] max-w-[480px] bg-background border-r border-border z-50 flex flex-col shadow-[24px_0_48px_rgba(0,0,0,0.05)]"
                     >
                         {/* Header */}
-                        <div className="flex items-center justify-between p-3 sm:p-4 border-b border-white/5 bg-zinc-950">
-                            <div className="flex items-center gap-2 text-zinc-100 font-semibold uppercase tracking-wide text-xs">
-                                <History size={16} className="text-amber-500" />
-                                <span>History</span>
+                        <div className="flex items-center justify-between p-8 md:p-12 border-b border-border bg-transparent">
+                            <div className="flex items-center gap-4 text-charcoal">
+                                <History size={20} className="stroke-[1.5]" />
+                                <span className="font-editorial text-2xl italic tracking-wide">Archive</span>
                             </div>
                             <button
                                 onClick={onClose}
-                                className="p-1.5 rounded-md hover:bg-white/10 text-zinc-400 hover:text-white transition-colors"
+                                className="p-2 border border-transparent hover:border-border text-muted-foreground hover:text-charcoal transition-all duration-500 ease-out"
                             >
-                                <X size={16} />
+                                <X size={20} className="stroke-[1.5]" />
                             </button>
                         </div>
 
                         {/* List */}
-                        <div className="flex-1 overflow-y-auto p-2 sm:p-3 space-y-2">
+                        <div className="flex-1 overflow-y-auto px-8 md:px-12 py-8 space-y-2">
                             {history.length === 0 ? (
-                                <div className="text-center text-zinc-600 py-12 text-sm">
-                                    <Clock size={24} className="mx-auto mb-3 opacity-20" />
-                                    No history yet.
+                                <div className="text-left text-muted-foreground py-16 flex flex-col gap-6">
+                                    <div className="h-px w-12 bg-border"></div>
+                                    <p className="font-editorial text-2xl italic">The archive is empty.</p>
+                                    <p className="text-sm tracking-wide">Begin generating components to record your progress.</p>
                                 </div>
                             ) : (
                                 history.map((item, idx) => (
@@ -97,17 +97,24 @@ export function HistorySidebar({ isOpen, onClose, onSelect }: HistorySidebarProp
                                             onSelect(item);
                                             onClose();
                                         }}
-                                        className="w-full text-left group bg-zinc-900/40 border border-white/5 hover:border-amber-500/40 hover:bg-zinc-900 rounded-lg p-3 transition-all duration-200"
+                                        className="w-full text-left group bg-transparent border-t border-border hover:bg-muted/50 rounded-none p-6 md:p-8 transition-colors duration-700 ease-out flex flex-col gap-4"
                                     >
-                                        <p className="text-[10px] text-zinc-500 mb-1 flex items-center justify-between font-mono">
-                                            {new Date(item.timestamp).toLocaleDateString()}
+                                        <div className="flex items-center gap-3">
+                                            <div className="h-1 w-1 bg-gold rounded-none opacity-0 group-hover:opacity-100 transition-opacity duration-700"></div>
+                                            <p className="text-[10px] text-muted-foreground uppercase tracking-[0.25em] font-sans">
+                                                {new Date(item.timestamp).toLocaleDateString(undefined, {
+                                                    year: 'numeric',
+                                                    month: 'long',
+                                                    day: 'numeric'
+                                                })}
+                                            </p>
+                                        </div>
+                                        <p className="text-lg md:text-xl text-charcoal font-editorial line-clamp-3 leading-relaxed group-hover:text-gold transition-colors duration-700">
+                                            &quot;{item.prompt}&quot;
                                         </p>
-                                        <p className="text-xs text-zinc-400 line-clamp-2 leading-relaxed group-hover:text-zinc-200 transition-colors">
-                                            {item.prompt}
-                                        </p>
-                                        <div className="mt-2 flex items-center gap-1 text-[10px] text-amber-500 opacity-0 group-hover:opacity-100 transition-opacity font-medium">
-                                            <span>RESTORE</span>
-                                            <ChevronRight size={10} />
+                                        <div className="mt-2 flex items-center gap-2 text-xs text-muted-foreground group-hover:text-charcoal tracking-[0.2em] uppercase transition-colors duration-700">
+                                            <span>Restore</span>
+                                            <ChevronRight size={14} className="stroke-[1.5] group-hover:translate-x-1 transition-transform duration-700" />
                                         </div>
                                     </button>
                                 ))
@@ -116,13 +123,13 @@ export function HistorySidebar({ isOpen, onClose, onSelect }: HistorySidebarProp
 
                         {/* Footer */}
                         {history.length > 0 && (
-                            <div className="p-3 sm:p-4 border-t border-white/5 bg-zinc-950">
+                            <div className="p-8 md:p-12 border-t border-border bg-transparent">
                                 <button
                                     onClick={clearHistory}
-                                    className="w-full flex items-center justify-center gap-2 text-xs text-zinc-500 hover:text-red-400 hover:bg-red-500/5 py-2.5 rounded-md transition-colors border border-transparent hover:border-red-500/10 uppercase tracking-wider font-medium"
+                                    className="w-full flex items-center justify-center gap-3 text-xs text-muted-foreground hover:text-destructive py-4 border border-transparent hover:border-destructive/30 transition-all duration-500 uppercase tracking-[0.2em]"
                                 >
-                                    <Trash2 size={14} />
-                                    Clear History
+                                    <Trash2 size={14} className="stroke-[1.5]" />
+                                    Clear Archive
                                 </button>
                             </div>
                         )}

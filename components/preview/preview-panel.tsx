@@ -9,7 +9,6 @@ import {
     useSandpack,
 } from "@codesandbox/sandpack-react";
 import {
-    Code2,
     Check,
     Copy,
     Download,
@@ -28,22 +27,18 @@ import {
 } from "lucide-react";
 
 import { compressToEncodedURIComponent, compressToBase64 } from "lz-string";
-// NOTE: compressToEncodedURIComponent is used by handleFullscreen
-// compressToBase64 is used by handleOpenInCodeSandbox
 import { SANDPACK_DEPS, SANDPACK_RESOURCES } from "@/lib/sandpack-config";
 import { exportAsViteProject } from "@/lib/export-project";
 
-/* ===== Viewport presets ===== */
 const VIEWPORTS = {
-    full: { width: "100%", label: "Full", icon: Maximize2 },
-    desktop: { width: "1280px", label: "Desktop", icon: Monitor },
-    tablet: { width: "768px", label: "Tablet", icon: Tablet },
-    mobile: { width: "375px", label: "Mobile", icon: Smartphone },
+    full: { width: "100%", label: "FULL", icon: Maximize2 },
+    desktop: { width: "1280px", label: "DESKTOP", icon: Monitor },
+    tablet: { width: "768px", label: "TABLET", icon: Tablet },
+    mobile: { width: "375px", label: "MOBILE", icon: Smartphone },
 } as const;
 
 type ViewportKey = keyof typeof VIEWPORTS;
 
-/* ===== Error Listener (child of SandpackProvider) ===== */
 function SandpackErrorListener({
     onError,
     isFixing,
@@ -55,13 +50,11 @@ function SandpackErrorListener({
     const lastReportedRef = useRef<string>("");
 
     useEffect(() => {
-        if (isFixing) return; // Don't report errors while a fix is in flight
+        if (isFixing) return;
 
-        // Check for bundler errors from Sandpack status
         const errors: string[] = [];
 
         if (sandpack.status === "idle" || sandpack.status === "running") {
-            // Check for error state in sandpack
             const sandpackError = sandpack.error;
             if (sandpackError) {
                 const msg = typeof sandpackError === "object" && sandpackError.message
@@ -75,7 +68,6 @@ function SandpackErrorListener({
             const errorKey = errors.join("|");
             if (errorKey !== lastReportedRef.current) {
                 lastReportedRef.current = errorKey;
-                // Allow Sandpack to stabilize before reporting
                 const timer = setTimeout(() => onError(errors), 2000);
                 return () => clearTimeout(timer);
             }
@@ -87,7 +79,6 @@ function SandpackErrorListener({
     return null;
 }
 
-/* ===== Props ===== */
 interface PreviewPanelProps {
     code: string;
     files?: Record<string, string>;
@@ -121,12 +112,9 @@ export function PreviewPanel({
     const downloadBtnRef = useRef<HTMLButtonElement>(null);
     const [menuPos, setMenuPos] = useState({ top: 0, right: 0 });
 
-    // Determine sandpack files
     const sandpackFiles = files && Object.keys(files).length > 1
         ? files
         : { "/App.js": code };
-
-    /* -------- Handlers -------- */
 
     const handleDownloadJSX = useCallback(() => {
         const blob = new Blob([code], { type: "text/javascript" });
@@ -137,15 +125,14 @@ export function PreviewPanel({
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
-        // Delay revoking the URL to give the browser time to start the download
         setTimeout(() => URL.revokeObjectURL(url), 1500);
-        onToast?.("JSX file downloaded!", "success");
+        onToast?.("JSX DOWNLOADED", "success");
         setShowDownloadMenu(false);
     }, [code, onToast]);
 
     const handleDownloadProject = useCallback(async () => {
         try {
-            onToast?.("Building project zip...", "info");
+            onToast?.("BUILDING ZIP...", "info");
             const blob = await exportAsViteProject(code, files);
             const url = URL.createObjectURL(blob);
             const a = document.createElement("a");
@@ -154,21 +141,18 @@ export function PreviewPanel({
             document.body.appendChild(a);
             a.click();
             document.body.removeChild(a);
-            // Delay revoking the URL to give the browser time to start the download
             setTimeout(() => URL.revokeObjectURL(url), 1500);
-            onToast?.("Vite project downloaded!", "success");
+            onToast?.("VITE PROJECT DOWNLOADED", "success");
         } catch {
-            onToast?.("Failed to export project", "error");
+            onToast?.("FAILED TO EXPORT PROJECT", "error");
         }
         setShowDownloadMenu(false);
     }, [code, files, onToast]);
 
     const handleCopyWithToast = useCallback(() => {
         onCopy();
-        onToast?.("Code copied to clipboard!", "success");
+        onToast?.("SOURCE COPIED", "success");
     }, [onCopy, onToast]);
-
-
 
     const handleFullscreen = useCallback(() => {
         try {
@@ -176,7 +160,6 @@ export function PreviewPanel({
             const url = `/preview?code=${compressed}`;
             window.open(url, "_blank");
         } catch {
-            // Fallback: ensure localStorage is fresh, then open without query
             try {
                 localStorage.setItem("promptui_code", code);
             } catch { /* ignore */ }
@@ -215,7 +198,6 @@ export function PreviewPanel({
                 },
             };
 
-            // Use POST form submission instead of GET URL to avoid URL length limits
             const compressed = compressToBase64(JSON.stringify({ files: csFiles }));
             const form = document.createElement("form");
             form.method = "POST";
@@ -238,80 +220,70 @@ export function PreviewPanel({
             form.submit();
             document.body.removeChild(form);
 
-            onToast?.("Opening in CodeSandbox...", "info");
+            onToast?.("SANDBOX OPENING...", "info");
         } catch {
-            onToast?.("Failed to open CodeSandbox", "error");
+            onToast?.("SANDBOX FAILED", "error");
         }
     }, [code, onToast]);
 
-    /* -------- Styles -------- */
-
     const btnClass =
-        "flex items-center gap-1.5 text-xs px-2 py-1.5 rounded-md bg-zinc-900 border border-white/5 text-zinc-400 hover:text-white hover:border-white/20 transition-all duration-200";
+        "flex items-center gap-2 text-[10px] px-3 py-2 bg-transparent border border-transparent text-charcoal hover:bg-muted hover:border-border transition-all duration-500 ease-[cubic-bezier(0.25,0.46,0.45,0.94)] uppercase tracking-[0.2em] rounded-none";
 
     const vpBtnClass = (key: ViewportKey) =>
-        `p-1.5 rounded-md transition-all duration-200 ${viewport === key
-            ? "bg-amber-500/10 border border-amber-500/30 text-amber-400"
-            : "text-zinc-500 hover:text-zinc-300 border border-transparent hover:border-white/10"
+        `p-2 transition-all duration-500 rounded-none border ${viewport === key
+            ? "bg-transparent border-charcoal text-charcoal shadow-[0_2px_8px_rgba(0,0,0,0.02)]"
+            : "text-muted-foreground bg-transparent hover:text-charcoal border-transparent hover:border-border"
         }`;
 
-    /* -------- Loading overlay content -------- */
     const renderLoadingOverlay = () => {
         if (!isLoading && !isFixing) return null;
 
-        const status = loadingStatus || (isFixing ? "Auto-fixing errors..." : "Generating component...");
-        const iconColor = isFixing ? "text-orange-400" : "text-amber-500";
-        const barColor = isFixing ? "bg-orange-400/60" : "bg-amber-500/60";
+        const status = loadingStatus || (isFixing ? "AUTO-FIXING IN PROGRESS" : "GENERATING COMPONENT...");
+        const iconColor = "text-charcoal";
+        const barColor = "bg-charcoal";
 
         return (
-            <div className="absolute inset-0 z-30 bg-zinc-950/80 backdrop-blur-sm flex flex-col items-center justify-center gap-4">
+            <div className="absolute inset-0 z-30 bg-background/60 backdrop-blur-sm flex flex-col items-center justify-center gap-6">
                 {isFixing ? (
-                    <div className="relative">
-                        <Wrench size={28} className={`${iconColor} animate-bounce`} />
-                        <div className="absolute -top-1 -right-1 w-3 h-3 bg-orange-500 rounded-full animate-ping" />
-                    </div>
+                    <Wrench size={24} className={`${iconColor} animate-bounce stroke-[1]`} />
                 ) : (
-                    <Loader2 size={28} className={`animate-spin ${iconColor}`} />
+                    <Loader2 size={24} className={`animate-spin ${iconColor} stroke-[1]`} />
                 )}
-                <div className="text-center space-y-1">
-                    <span className="text-sm text-zinc-300 font-medium block">{status}</span>
+                <div className="text-center space-y-2 uppercase font-sans tracking-[0.25em]">
+                    <span className="text-sm text-foreground block">{status}</span>
                     {isFixing && fixAttempt > 0 && (
-                        <span className="text-[11px] text-zinc-500 block">
-                            Attempt {fixAttempt} of 3
+                        <span className="text-[10px] text-muted-foreground block">
+                            ATTEMPT {fixAttempt}/3
                         </span>
                     )}
                 </div>
-                <div className="w-56 h-1.5 bg-zinc-800 rounded-full overflow-hidden">
+                <div className="w-64 h-[1px] bg-border relative">
                     <div
-                        className={`h-full rounded-full skeleton-pulse transition-all duration-500 ${barColor}`}
+                        className={`absolute top-0 left-0 h-full transition-all duration-[1500ms] ease-[cubic-bezier(0.25,0.46,0.45,0.94)] ${barColor}`}
                         style={{ width: isFixing ? `${30 + fixAttempt * 20}%` : "60%" }}
                     />
                 </div>
-                {isFixing && (
-                    <p className="text-[10px] text-zinc-600 max-w-60 text-center">
-                        AI is analyzing and fixing runtime errors automatically
-                    </p>
-                )}
             </div>
         );
     };
 
     return (
-        <div className="flex flex-col h-full min-h-0 bg-zinc-950 overflow-hidden">
-            {/* ------- Toolbar ------- */}
-            <div className="flex-shrink-0 px-2 sm:px-4 md:px-5 py-2 sm:py-2.5 border-b border-white/5 flex items-center justify-between bg-zinc-950 gap-1.5 sm:gap-2 min-w-0">
-                <h2 className="text-[11px] sm:text-xs md:text-sm font-semibold text-zinc-100 flex items-center gap-1.5 sm:gap-2 tracking-wide uppercase whitespace-nowrap flex-shrink-0">
-                    <Code2 size={14} className="text-amber-500 flex-shrink-0" />
-                    <span className="hidden sm:inline">Live</span> Preview
+        <div className="flex flex-col h-full min-h-0 bg-background overflow-hidden relative">
+            {/* Toolbar */}
+            <div className="flex-shrink-0 px-6 py-4 border-b border-border flex items-center justify-between bg-transparent gap-4 min-w-0 relative z-20">
+                <h2 className="text-sm font-sans text-charcoal flex items-center gap-3 tracking-[0.2em] uppercase whitespace-nowrap flex-shrink-0">
+                    <span className="text-gold">/</span>
+                    <span className="hidden sm:inline">LIVE PREVIEW</span>
                     {isFixing && (
-                        <span className="inline-flex items-center gap-1 px-1 py-0.5 rounded bg-orange-500/10 border border-orange-500/30 text-orange-400 text-[8px] sm:text-[9px] font-bold uppercase tracking-wider animate-pulse">
-                            <Wrench size={8} /> Fixing
+                        <span className="inline-flex items-center gap-2 px-2 py-1 bg-transparent text-destructive text-[10px] uppercase tracking-widest border border-destructive">
+                            <Wrench size={10} className="stroke-[1.5]" /> FIXING
                         </span>
                     )}
                 </h2>
-                <div className="flex items-center gap-1 sm:gap-1.5 flex-nowrap justify-end min-w-0 overflow-x-auto">
+                
+                <div className="flex items-center gap-2 flex-nowrap justify-end min-w-0 overflow-x-auto">
                     {/* Viewport Toggle */}
-                    <div className="hidden md:flex items-center gap-0.5 bg-zinc-900 rounded-lg p-0.5 border border-white/5">
+                    <div className="hidden md:flex items-center gap-1 bg-transparent">
                         {(Object.keys(VIEWPORTS) as ViewportKey[]).map((key) => {
                             const V = VIEWPORTS[key];
                             const Icon = V.icon;
@@ -322,36 +294,31 @@ export function PreviewPanel({
                                     className={vpBtnClass(key)}
                                     title={V.label}
                                 >
-                                    <Icon size={13} />
+                                    <Icon size={14} className="stroke-[1.5]" />
                                 </button>
                             );
                         })}
+                        <div className="h-6 w-px bg-border mx-2"></div>
                     </div>
 
-                    {/* Code Toggle */}
                     <button
                         onClick={() => setShowEditor((v) => !v)}
-                        className={`${btnClass} ${showEditor ? "text-amber-400 border-amber-500/30 bg-amber-500/10" : ""}`}
-                        title={showEditor ? "Hide Editor" : "Show Editor"}
+                        className={`${btnClass} ${showEditor ? "border-charcoal shadow-[0_2px_8px_rgba(0,0,0,0.02)]" : ""}`}
+                        title={showEditor ? "HIDE CODE" : "SHOW CODE"}
                     >
-                        {showEditor ? <EyeOff size={12} /> : <Eye size={12} />}
-                        <span className="hidden sm:inline">{showEditor ? "Hide" : "Code"}</span>
+                        {showEditor ? <EyeOff size={14} className="stroke-[1.5]" /> : <Eye size={14} className="stroke-[1.5]" />}
+                        <span className="hidden sm:inline">{showEditor ? "HIDE" : "CODE"}</span>
                     </button>
 
-
-
-                    {/* CodeSandbox */}
-                    <button onClick={handleOpenInCodeSandbox} className={btnClass} title="Open in CodeSandbox">
-                        <ExternalLink size={12} />
-                        <span className="hidden md:inline">Sandbox</span>
+                    <button onClick={handleOpenInCodeSandbox} className={btnClass} title="OPEN SANDBOX">
+                        <ExternalLink size={14} className="stroke-[1.5]" />
+                        <span className="hidden md:inline">SANDBOX</span>
                     </button>
 
-                    {/* Fullscreen */}
-                    <button onClick={handleFullscreen} className={btnClass} title="Open Fullscreen">
-                        <Maximize2 size={12} />
+                    <button onClick={handleFullscreen} className={btnClass} title="FULLSCREEN">
+                        <Maximize2 size={14} className="stroke-[1.5]" />
                     </button>
 
-                    {/* Download Dropdown */}
                     <div className="relative">
                         <button
                             ref={downloadBtnRef}
@@ -359,17 +326,17 @@ export function PreviewPanel({
                                 if (!showDownloadMenu && downloadBtnRef.current) {
                                     const rect = downloadBtnRef.current.getBoundingClientRect();
                                     setMenuPos({
-                                        top: rect.bottom + 4,
+                                        top: rect.bottom + 8,
                                         right: window.innerWidth - rect.right,
                                     });
                                 }
                                 setShowDownloadMenu((v) => !v);
                             }}
                             className={btnClass}
-                            title="Download"
+                            title="DOWNLOAD"
                         >
-                            <Download size={12} />
-                            <ChevronDown size={10} />
+                            <Download size={14} className="stroke-[1.5]" />
+                            <ChevronDown size={12} className="stroke-[1.5] ml-1" />
                         </button>
                     </div>
                     {showDownloadMenu && (
@@ -379,62 +346,64 @@ export function PreviewPanel({
                                 onClick={() => setShowDownloadMenu(false)}
                             />
                             <div
-                                className="fixed z-[9999] w-48 bg-zinc-900 border border-white/10 rounded-lg shadow-xl overflow-hidden"
+                                className="fixed z-[9999] w-48 bg-background border border-border shadow-[0_8px_32px_rgba(0,0,0,0.12)] overflow-hidden"
                                 style={{ top: menuPos.top, right: menuPos.right }}
                             >
                                 <button
                                     onClick={(e) => { e.stopPropagation(); handleDownloadJSX(); }}
-                                    className="flex items-center gap-2 w-full px-3 py-2.5 text-xs text-zinc-300 hover:bg-zinc-800 hover:text-white transition-colors"
+                                    className="flex items-center gap-3 w-full px-4 py-3 text-[10px] tracking-[0.2em] font-medium uppercase text-charcoal hover:bg-muted transition-colors duration-500"
                                 >
-                                    <FileCode size={14} />
-                                    Download JSX
+                                    <FileCode size={14} className="stroke-[1.5]" />
+                                    JSX
                                 </button>
+                                <div className="h-px bg-border/50 mx-4"></div>
                                 <button
                                     onClick={(e) => { e.stopPropagation(); handleDownloadProject(); }}
-                                    className="flex items-center gap-2 w-full px-3 py-2.5 text-xs text-zinc-300 hover:bg-zinc-800 hover:text-white transition-colors border-t border-white/5"
+                                    className="flex items-center gap-3 w-full px-4 py-3 text-[10px] tracking-[0.2em] font-medium uppercase text-charcoal hover:bg-muted transition-colors duration-500"
                                 >
-                                    <FolderArchive size={14} />
-                                    Download Vite Project
+                                    <FolderArchive size={14} className="stroke-[1.5]" />
+                                    ZIP (VITE)
                                 </button>
                             </div>
                         </>
                     )}
 
-                    {/* Copy */}
+                    <div className="h-6 w-px bg-border mx-1"></div>
+
                     <button
                         onClick={handleCopyWithToast}
-                        className={`${btnClass} ${copied ? "text-amber-400 border-amber-500/30" : "hover:text-amber-400 hover:border-amber-500/30"}`}
+                        className={`${btnClass} ${copied ? "border-charcoal text-gold" : ""}`}
                     >
                         {copied ? (
-                            <><Check size={12} className="text-amber-500" /><span className="hidden sm:inline">Copied!</span></>
+                            <><Check size={14} className="text-gold stroke-[1.5]" /><span className="hidden sm:inline">COPIED</span></>
                         ) : (
-                            <><Copy size={12} /><span className="hidden sm:inline">Copy</span></>
+                            <><Copy size={14} className="stroke-[1.5]" /><span className="hidden sm:inline">COPY</span></>
                         )}
                     </button>
                 </div>
             </div>
 
-            {/* ------- Sandpack Area ------- */}
-            <div className="flex-1 min-h-0 overflow-hidden sandpack-fill relative">
+            {/* Sandpack Area */}
+            <div className="flex-1 min-h-0 overflow-hidden relative sandpack-fill bg-muted/30">
                 {renderLoadingOverlay()}
 
-                {/* Responsive container */}
                 <div
-                    className="h-full mx-auto transition-all duration-300 ease-in-out"
+                    className="h-full mx-auto transition-all duration-700 ease-[cubic-bezier(0.25,0.46,0.45,0.94)]"
                     style={{
                         maxWidth: VIEWPORTS[viewport].width,
-                        boxShadow: viewport !== "full" ? "0 0 0 1px rgba(255,255,255,0.05)" : "none",
+                        boxShadow: viewport !== "full" ? "0 4px 24px rgba(0,0,0,0.04)" : "none",
+                        borderLeft: viewport !== "full" ? "1px solid rgba(0,0,0,0.05)" : "none",
+                        borderRight: viewport !== "full" ? "1px solid rgba(0,0,0,0.05)" : "none",
                     }}
                 >
                     <SandpackProvider
                         key={sandpackKey}
                         template="react"
-                        theme="dark"
+                        theme="light"
                         files={sandpackFiles}
                         customSetup={{ dependencies: SANDPACK_DEPS }}
                         options={{ externalResources: SANDPACK_RESOURCES }}
                     >
-                        {/* Error listener for auto-fix */}
                         {onSandpackError && !isLoading && (
                             <SandpackErrorListener
                                 onError={onSandpackError}
@@ -452,22 +421,20 @@ export function PreviewPanel({
                                 flexDirection: "column",
                             }}
                         >
-                            {/* Preview */}
                             <SandpackPreview
                                 showOpenInCodeSandbox={false}
                                 showRefreshButton
                                 style={{
-                                    flex: showEditor ? "6" : "1",
+                                    flex: showEditor ? "1" : "1",
                                     minHeight: 0,
                                     width: "100%",
                                 }}
                             />
 
-                            {/* Editor */}
                             {showEditor && (
                                 <div
-                                    className="border-t border-white/10 overflow-hidden"
-                                    style={{ flex: "4", minHeight: "100px" }}
+                                    className="border-t border-border overflow-hidden"
+                                    style={{ flex: "1", minHeight: "100px" }}
                                 >
                                     <SandpackCodeEditor
                                         showLineNumbers
@@ -475,8 +442,9 @@ export function PreviewPanel({
                                         wrapContent
                                         style={{
                                             height: "100%",
-                                            fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+                                            fontFamily: "'Courier New', Courier, monospace",
                                             fontSize: "13px",
+                                            fontWeight: "normal"
                                         }}
                                     />
                                 </div>

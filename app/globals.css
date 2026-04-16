@@ -4,61 +4,60 @@
 
 @layer base {
   :root {
-    /* Luxury Dark Theme (Black & Gold) */
-    --background: 0 0% 0%;
-    --foreground: 0 0% 95%;
+    /* Luxury / Editorial Theme */
+    --background: 40 25% 97%;     /* #F9F8F6 Warm Alabaster */
+    --foreground: 0 0% 10%;       /* #1A1A1A Rich Charcoal */
 
-    --card: 0 0% 4%;
-    --card-foreground: 0 0% 95%;
+    --card: 40 25% 97%;
+    --card-foreground: 0 0% 10%;
 
-    --popover: 0 0% 4%;
-    --popover-foreground: 0 0% 95%;
+    --popover: 40 25% 97%;
+    --popover-foreground: 0 0% 10%;
 
-    --primary: 45 93% 47%;
-    /* Amber 500 */
-    --primary-foreground: 0 0% 0%;
+    --primary: 0 0% 10%;          /* #1A1A1A */
+    --primary-foreground: 0 0% 100%;
 
-    --secondary: 0 0% 9%;
-    /* Zinc 900 */
-    --secondary-foreground: 0 0% 95%;
+    --secondary: 0 0% 10%;
+    --secondary-foreground: 0 0% 100%;
 
-    --muted: 0 0% 9%;
-    --muted-foreground: 0 0% 60%;
+    --muted: 33 21% 89%;          /* #EBE5DE Pale Taupe */
+    --muted-foreground: 30 5% 41%;/* #6C6863 Warm Grey */
 
-    --accent: 0 0% 12%;
-    --accent-foreground: 0 0% 95%;
+    --accent: 46 65% 52%;         /* #D4AF37 Metallic Gold */
+    --accent-foreground: 0 0% 100%;
 
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 0 0% 95%;
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 98%;
 
-    --border: 0 0% 12%;
-    --input: 0 0% 12%;
-    --ring: 45 93% 47%;
+    --border: 0 0% 10%;           /* #1A1A1A */
+    --input: 0 0% 10%;            /* #1A1A1A */
+    --ring: 46 65% 52%;           /* Gold */
 
-    --radius: 0.5rem;
+    --radius: 0px;                /* Strictly rectangular */
   }
 }
 
 @layer base {
   * {
-    border-color: hsl(var(--border));
+    border-color: hsl(var(--border) / 0.15); /* 15% opacity charcoal as default border */
   }
 
   body {
     background-color: hsl(var(--background));
     color: hsl(var(--foreground));
-    font-feature-settings: "rlig" 1, "calt" 1;
-    overflow: hidden;
+    overflow-x: hidden;
   }
+
+  /* Paper texture overlay moved to layout.tsx to avoid postcss loader bugs */
 
   .glass-panel {
-    @apply bg-zinc-900/50 backdrop-blur-xl border border-white/5 shadow-2xl;
+    @apply bg-background border border-border shadow-[0_4px_24px_rgba(0,0,0,0.04)] rounded-none;
   }
 
-  /* Custom Scrollbar */
+  /* Custom Scrollbar - Elegant minimal style */
   ::-webkit-scrollbar {
-    width: 5px;
-    height: 5px;
+    width: 4px;
+    height: 4px;
   }
 
   ::-webkit-scrollbar-track {
@@ -66,15 +65,50 @@
   }
 
   ::-webkit-scrollbar-thumb {
-    @apply bg-zinc-800 rounded-full hover:bg-zinc-700;
+    @apply bg-[#1A1A1A]/20 rounded-none;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-[#D4AF37];
   }
 }
 
 /* ============================
-   Sandpack Layout Overrides
+   Luxury UI Utilities
    ============================ */
 
-/* Force Sandpack to fill container via parent class */
+.font-editorial {
+  font-family: var(--font-playfair), serif;
+}
+
+.text-vertical {
+  writing-mode: vertical-rl;
+}
+
+.bg-charcoal {
+  background-color: #1A1A1A;
+}
+
+.text-charcoal {
+  color: #1A1A1A;
+}
+
+.border-charcoal {
+  border-color: #1A1A1A;
+}
+
+.bg-gold {
+  background-color: #D4AF37;
+}
+
+.text-gold {
+  color: #D4AF37;
+}
+
+/* ============================
+   Sandpack Layout Overrides 
+   ============================ */
+
 .sandpack-fill .sp-wrapper,
 .sandpack-fill .sp-layout,
 .sandpack-fill .sp-stack {
@@ -92,7 +126,6 @@
   z-index: 10;
 }
 
-/* Fullscreen preview page overrides */
 .fullscreen-preview .sp-wrapper,
 .fullscreen-preview .sp-layout,
 .fullscreen-preview .sp-stack {
@@ -116,19 +149,11 @@
   width: 100% !important;
 }
 
-/* Skeleton Loading Pulse */
-@keyframes skeleton-pulse {
-
-  0%,
-  100% {
-    opacity: 0.4;
-  }
-
-  50% {
-    opacity: 0.8;
-  }
+@keyframes skeleton-pulse-cinematic {
+  0%, 100% { opacity: 0.2; }
+  50% { opacity: 0.6; }
 }
 
 .skeleton-pulse {
-  animation: skeleton-pulse 1.8s ease-in-out infinite;
+  animation: skeleton-pulse-cinematic 2.5s cubic-bezier(0.25, 0.46, 0.45, 0.94) infinite;
 }
