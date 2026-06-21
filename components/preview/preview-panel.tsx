@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useCallback, useEffect, useRef } from "react";
+import { motion } from "framer-motion";
 import {
     SandpackProvider,
     SandpackLayout,
@@ -29,6 +30,7 @@ import {
 import { compressToEncodedURIComponent, compressToBase64 } from "lz-string";
 import { SANDPACK_DEPS, SANDPACK_RESOURCES } from "@/lib/sandpack-config";
 import { exportAsViteProject } from "@/lib/export-project";
+import { cleanupSandpackIframes, getIframeCount } from "@/lib/sandpack-cleanup";
 
 const VIEWPORTS = {
     full: { width: "100%", label: "FULL", icon: Maximize2 },
@@ -93,6 +95,8 @@ interface PreviewPanelProps {
     onToast?: (message: string, type?: "success" | "error" | "info" | "warning") => void;
 }
 
+const BLOB_CLEANUP_DELAY = 10000;
+
 export function PreviewPanel({
     code,
     files,
@@ -111,29 +115,95 @@ export function PreviewPanel({
     const [showDownloadMenu, setShowDownloadMenu] = useState(false);
     const downloadBtnRef = useRef<HTMLButtonElement>(null);
     const [menuPos, setMenuPos] = useState({ top: 0, right: 0 });
+    const abortZipRef = useRef<AbortController | null>(null);
 
     const sandpackFiles = files && Object.keys(files).length > 1
         ? files
         : { "/App.js": code };
 
+    useEffect(() => {
+        const count = getIframeCount();
+        if (count > 3) {
+            console.warn(`Too many Sandpack iframes (${count}). Cleaning up...`);
+            cleanupSandpackIframes();
+        }
+    }, [sandpackKey]);
+
+    useEffect(() => {
+        const interval = setInterval(() => {
+            const count = getIframeCount();
+            if (count > 2) {
+                console.warn(
+                    `Warning: ${count} active Sandpack iframes. Memory might be leaking. Consider refreshing.`
+                );
+            }
+        }, 30000);
+        return () => clearInterval(interval);
+    }, []);
+
+    useEffect(() => {
+        return () => {
+            abortZipRef.current?.abort();
+        };
+    }, []);
+
     const handleDownloadJSX = useCallback(() => {
-        const blob = new Blob([code], { type: "text/javascript" });
+        if (!code || code.trim().length === 0) {
+            onToast?.("No code to download", "error");
+            return;
+        }
+
+        try {
+            new Function(`return (${code})`);
+        } catch {
+            onToast?.("Code has syntax errors. Please fix before downloading.", "warning");
+            return;
+        }
+
+        const fileContent = new TextEncoder().encode(code);
+        const blob = new Blob([fileContent], {
+            type: "text/javascript; charset=utf-8",
+        });
+
         const url = URL.createObjectURL(blob);
         const a = document.createElement("a");
         a.href = url;
-        a.download = "Component.jsx";
+        a.download = `Component_${Date.now()}.jsx`;
+        a.style.display = "none";
         document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        setTimeout(() => URL.revokeObjectURL(url), 1500);
+
+        setTimeout(() => {
+            a.click();
+            document.body.removeChild(a);
+            setTimeout(() => {
+                URL.revokeObjectURL(url);
+            }, BLOB_CLEANUP_DELAY);
+        }, 100);
+
         onToast?.("JSX DOWNLOADED", "success");
         setShowDownloadMenu(false);
     }, [code, onToast]);
 
     const handleDownloadProject = useCallback(async () => {
+        if (abortZipRef.current) {
+            abortZipRef.current.abort();
+        }
+
+        const controller = new AbortController();
+        abortZipRef.current = controller;
+
         try {
             onToast?.("BUILDING ZIP...", "info");
+            
+            if (controller.signal.aborted) return;
+            
             const blob = await exportAsViteProject(code, files);
+
+            if (controller.signal.aborted) {
+                onToast?.("Download cancelled", "info");
+                return;
+            }
+
             const url = URL.createObjectURL(blob);
             const a = document.createElement("a");
             a.href = url;
@@ -141,12 +211,20 @@ export function PreviewPanel({
             document.body.appendChild(a);
             a.click();
             document.body.removeChild(a);
-            setTimeout(() => URL.revokeObjectURL(url), 1500);
+            
+            setTimeout(() => URL.revokeObjectURL(url), BLOB_CLEANUP_DELAY);
             onToast?.("VITE PROJECT DOWNLOADED", "success");
-        } catch {
+        } catch (error) {
+            if (error instanceof Error && error.name === "AbortError") {
+                console.log("ZIP export was cancelled");
+                return;
+            }
             onToast?.("FAILED TO EXPORT PROJECT", "error");
+            console.error("ZIP export error:", error);
+        } finally {
+            setShowDownloadMenu(false);
+            abortZipRef.current = null;
         }
-        setShowDownloadMenu(false);
     }, [code, files, onToast]);
 
     const handleCopyWithToast = useCallback(() => {
@@ -239,31 +317,53 @@ export function PreviewPanel({
         if (!isLoading && !isFixing) return null;
 
         const status = loadingStatus || (isFixing ? "AUTO-FIXING IN PROGRESS" : "GENERATING COMPONENT...");
-        const iconColor = "text-charcoal";
-        const barColor = "bg-charcoal";
+        const progress = isFixing ? 30 + fixAttempt * 20 : 60;
 
         return (
-            <div className="absolute inset-0 z-30 bg-background/60 backdrop-blur-sm flex flex-col items-center justify-center gap-6">
+            <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                className="absolute inset-0 z-30 bg-background/80 backdrop-blur-sm flex flex-col items-center justify-center gap-8"
+            >
                 {isFixing ? (
-                    <Wrench size={24} className={`${iconColor} animate-bounce stroke-[1]`} />
+                    <motion.div animate={{ rotate: 360 }} transition={{ duration: 2, repeat: Infinity }}>
+                        <Wrench size={32} className="text-charcoal" />
+                    </motion.div>
                 ) : (
-                    <Loader2 size={24} className={`animate-spin ${iconColor} stroke-[1]`} />
+                    <Loader2 size={32} className="animate-spin text-charcoal" />
                 )}
-                <div className="text-center space-y-2 uppercase font-sans tracking-[0.25em]">
-                    <span className="text-sm text-foreground block">{status}</span>
+
+                <div className="text-center space-y-4 max-w-md">
+                    <div className="text-sm text-foreground font-medium uppercase tracking-[0.1em]">
+                        {status}
+                    </div>
+
                     {isFixing && fixAttempt > 0 && (
-                        <span className="text-[10px] text-muted-foreground block">
-                            ATTEMPT {fixAttempt}/3
-                        </span>
+                        <div className="text-[11px] text-muted-foreground uppercase">
+                            ATTEMPT {fixAttempt} OF 3
+                        </div>
+                    )}
+
+                    {/* Progress bar */}
+                    <div className="w-full h-1 bg-border rounded-full overflow-hidden">
+                        <motion.div
+                            className="h-full bg-gold"
+                            initial={{ width: 0 }}
+                            animate={{ width: `${progress}%` }}
+                            transition={{ duration: 0.5 }}
+                        />
+                    </div>
+
+                    {/* Helpful tips */}
+                    {!isFixing && (
+                        <p className="text-[11px] text-muted-foreground mt-4">
+                            {isLoading
+                                ? "Generating your component... This usually takes 10-30 seconds."
+                                : "Fixing errors... Attempt " + fixAttempt}
+                        </p>
                     )}
                 </div>
-                <div className="w-64 h-[1px] bg-border relative">
-                    <div
-                        className={`absolute top-0 left-0 h-full transition-all duration-[1500ms] ease-[cubic-bezier(0.25,0.46,0.45,0.94)] ${barColor}`}
-                        style={{ width: isFixing ? `${30 + fixAttempt * 20}%` : "60%" }}
-                    />
-                </div>
-            </div>
+            </motion.div>
         );
     };
 

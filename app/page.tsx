@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useCallback, useEffect, useRef } from "react";
+import React, { useState, useCallback, useEffect, useRef, useMemo } from "react";
 import { ResizableSchematic } from "@/components/ui/resizable-schematic";
 import { Header } from "@/components/ui/header";
 import { PromptForm } from "@/components/prompt/prompt-form";
@@ -10,6 +10,8 @@ import { ToastProvider, useToast } from "@/components/ui/toast";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
 import { stripMarkdownFences } from "@/lib/parse-multi-file";
 import { decompressFromEncodedURIComponent } from "lz-string";
+import { StorageManager } from "@/lib/storage-manager";
+import { parseStreamWithValidation } from "@/lib/stream-parser";
 
 // Default Code Template (Luxury Editorial)
 const DEFAULT_CODE = `import React from 'react';
@@ -109,11 +111,30 @@ function HomeContent() {
   const abortRef = useRef<AbortController | null>(null);
   const { toast } = useToast();
 
+  const storageManager = useMemo(() => {
+    return new StorageManager({
+      onQuotaWarning: (quota) => {
+        toast(
+          `Storage nearly full: ${(quota.percentUsed * 100).toFixed(0)}% used. Consider clearing history.`,
+          "warning"
+        );
+      },
+      onQuotaExceeded: () => {
+        try {
+          localStorage.removeItem("promptui_history");
+          toast("Cleared old history to make space", "info");
+        } catch {
+          // Ignore
+        }
+      },
+    });
+  }, [toast]);
+
   useEffect(() => {
     try {
-      const savedPrompt = localStorage.getItem("promptui_prompt");
-      const savedCode = localStorage.getItem("promptui_code");
-      const savedFiles = localStorage.getItem("promptui_files");
+      const savedPrompt = storageManager.getItem("promptui_prompt");
+      const savedCode = storageManager.getItem("promptui_code");
+      const savedFiles = storageManager.getItem("promptui_files");
       if (savedPrompt) setPrompt(savedPrompt);
       if (savedFiles) {
         try {
@@ -156,15 +177,19 @@ function HomeContent() {
     } catch {
       // no local storage
     }
-  }, []);
+  }, [storageManager]);
 
   useEffect(() => {
     try {
-      localStorage.setItem("promptui_prompt", prompt);
-      localStorage.setItem("promptui_code", code);
-      localStorage.setItem("promptui_files", JSON.stringify(files));
-    } catch { }
-  }, [prompt, code, files]);
+      storageManager.setItem("promptui_prompt", prompt);
+      storageManager.setItem("promptui_code", code);
+      storageManager.setItem("promptui_files", JSON.stringify(files));
+    } catch (error) {
+      if (error instanceof Error) {
+        toast(error.message, "error");
+      }
+    }
+  }, [prompt, code, files, storageManager, toast]);
 
   useEffect(() => {
     if (retryCountdown === null) return;
@@ -203,73 +228,61 @@ function HomeContent() {
         body.prompt = trimmed + "\n\nCRITICAL DESIGN RULES: Use Luxury/Editorial design system. #F9F8F6 Alabaster background, #1A1A1A Charcoal text, #D4AF37 Gold accents, #6C6863 muted text. Massive negative space/padding. STRICT 0px border radius everywhere. Use Playfair Display font class ('font-editorial', 'font-serif') for massive headers (text-6xl to 9xl) and italic accents. Use Inter ('font-sans') for body. 1px borders only. Subtly deep shadows. Extremely slow cinematic hover transitions (duration-500 to duration-[2000ms]). Image hover should transition from grayscale to full color. NO harsh borders. Buttons should have gold backgrounds slide in from left on hover if primary.";
       }
 
-      const res = await fetch("/api/generate-stream", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-        signal: controller.signal,
-      });
+      let res: Response;
+      try {
+        res = await fetch("/api/generate-stream", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+          signal: controller.signal,
+        });
 
-      if (!res.ok) {
-        const data = await res.json();
-        if (res.status === 429 && data.isRateLimit) {
-          setRetryCountdown(15);
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          if (res.status === 429 && data.isRateLimit) {
+            setRetryCountdown(15);
+          }
+          throw new Error(data.error || `Server returned ${res.status}: ${res.statusText}`);
         }
-        throw new Error(data.error || "GENERATION FAILED.");
+      } catch (networkError) {
+        if (networkError instanceof Error && networkError.name === "AbortError") throw networkError;
+        throw new Error(
+          `Network request failed: ${
+            networkError instanceof Error ? networkError.message : "Unknown error"
+          }`
+        );
       }
 
-      const reader = res.body!.getReader();
-      const decoder = new TextDecoder();
-      let accumulated = "";
-      let buffer = "";
+      try {
+        const accumulated = await parseStreamWithValidation(
+          res,
+          () => {},
+          (err) => console.warn(err)
+        );
 
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
+        const finalCode = stripMarkdownFences(accumulated);
+        setCode(finalCode);
+        setFiles({ "/App.js": finalCode });
 
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split("\n");
-        buffer = lines.pop() || "";
+        setSandpackKey((k) => k + 1);
+        setActiveTab("preview");
+        setHasGenerated(true);
+        toast("COMPONENT ASSEMBLED", "success");
 
-        for (const line of lines) {
-          if (!line.startsWith("data: ")) continue;
-          const payload = line.slice(6).trim();
-
-          if (payload === "[DONE]") {
-            const finalCode = stripMarkdownFences(accumulated);
-            setCode(finalCode);
-            setFiles({ "/App.js": finalCode });
-
-            setSandpackKey((k) => k + 1);
-            setActiveTab("preview");
-            setHasGenerated(true);
-            toast("COMPONENT ASSEMBLED", "success");
-
-            try {
-              const item = { prompt: trimmed, code: accumulated, timestamp: Date.now() };
-              const saved = localStorage.getItem("promptui_history");
-              const history = saved ? JSON.parse(saved) : [];
-              const newHistory = [item, ...history].slice(0, 50);
-              localStorage.setItem("promptui_history", JSON.stringify(newHistory));
-              window.dispatchEvent(new Event("promptui_history_updated"));
-            } catch { }
-            continue;
-          }
-
-          try {
-            const parsed = JSON.parse(payload);
-            if (parsed.error) {
-              if (parsed.isRateLimit) setRetryCountdown(15);
-              throw new Error(parsed.error);
-            }
-            if (parsed.text) {
-              accumulated += parsed.text;
-            }
-          } catch (e) {
-            if (e instanceof SyntaxError) continue;
-            throw e;
-          }
-        }
+        try {
+          const item = { prompt: trimmed, code: accumulated, timestamp: Date.now() };
+          const saved = storageManager.getItem("promptui_history");
+          const history = saved ? JSON.parse(saved) : [];
+          const newHistory = [item, ...history].slice(0, 50);
+          storageManager.setItem("promptui_history", JSON.stringify(newHistory));
+          window.dispatchEvent(new Event("promptui_history_updated"));
+        } catch {}
+      } catch (streamError) {
+        throw new Error(
+          `Stream processing failed: ${
+            streamError instanceof Error ? streamError.message : "Unknown error"
+          }`
+        );
       }
     } catch (err) {
       if (err instanceof Error && err.name === "AbortError") return;
@@ -280,7 +293,7 @@ function HomeContent() {
       setIsLoading(false);
       abortRef.current = null;
     }
-  }, [prompt, isLoading, retryCountdown, toast, code, isIterating, hasGenerated]);
+  }, [prompt, isLoading, retryCountdown, toast, code, isIterating, hasGenerated, storageManager]);
 
   const handleCancel = useCallback(() => {
     abortRef.current?.abort();
@@ -294,7 +307,10 @@ function HomeContent() {
 
   const handleAutoFix = useCallback(async (errors: string[]) => {
     if (isFixing || isLoading || !hasGenerated) return;
-    if (fixAttempt >= MAX_FIX_ATTEMPTS) return;
+    if (fixAttempt >= MAX_FIX_ATTEMPTS) {
+      toast("Max fix attempts reached. Please refine manually.", "error");
+      return;
+    }
 
     const currentAttempt = fixAttempt + 1;
     setIsFixing(true);
@@ -302,53 +318,67 @@ function HomeContent() {
     setLoadingStatus(`AUTO-FIX ROUTINE (${currentAttempt}/${MAX_FIX_ATTEMPTS})...`);
 
     try {
-      const errorText = errors.slice(0, 3).join("\n");
+      const errorText = errors.slice(0, 3).join("\\n");
 
-      const res = await fetch("/api/generate-stream", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          previousCode: code,
-          refinement: `The generated code has the following runtime errors. Please fix ALL errors and return the complete corrected code:\n\n${errorText}`,
-        }),
-      });
+      let res: Response;
+      try {
+        res = await fetch("/api/generate-stream", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            previousCode: code,
+            refinement: `The generated code has the following runtime errors. Please fix ALL errors and return the complete corrected code:\\n\\n${errorText}`,
+          }),
+        });
 
-      if (!res.ok) throw new Error("FIX REQUEST FAILED");
-
-      const reader = res.body!.getReader();
-      const decoder = new TextDecoder();
-      let accumulated = "";
-      let buffer = "";
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split("\n");
-        buffer = lines.pop() || "";
-
-        for (const line of lines) {
-          if (!line.startsWith("data: ")) continue;
-          const payload = line.slice(6).trim();
-
-          if (payload === "[DONE]") {
-            const finalCode = stripMarkdownFences(accumulated);
-            setCode(finalCode);
-            setFiles({ "/App.js": finalCode });
-
-            setSandpackKey((k) => k + 1);
-            toast(`FIX APPLIED (ATTEMPT ${currentAttempt})`, "success");
-            continue;
-          }
-
-          try {
-            const parsed = JSON.parse(payload);
-            if (parsed.text) accumulated += parsed.text;
-          } catch { }
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          throw new Error(
+            data.error || `Server returned ${res.status}: ${res.statusText}`
+          );
         }
+      } catch (networkError) {
+        throw new Error(
+          `Network request failed: ${
+            networkError instanceof Error
+              ? networkError.message
+              : "Unknown error"
+          }`
+        );
       }
-    } catch {
-      toast("AUTO-FIX FAILED", "error");
+
+      try {
+        const accumulated = await parseStreamWithValidation(
+          res,
+          () => {},
+          (err) => console.warn(err)
+        );
+
+        const finalCode = stripMarkdownFences(accumulated);
+        setCode(finalCode);
+        setFiles({ "/App.js": finalCode });
+        setSandpackKey((k) => k + 1);
+        toast(
+          `FIX APPLIED (ATTEMPT ${currentAttempt}/${MAX_FIX_ATTEMPTS})`,
+          "success"
+        );
+      } catch (streamError) {
+        throw new Error(
+          `Stream processing failed: ${
+            streamError instanceof Error
+              ? streamError.message
+              : "Unknown error"
+          }`
+        );
+      }
+    } catch (err) {
+      const errorMessage =
+        err instanceof Error
+          ? err.message
+          : "Unknown error during auto-fix";
+  
+      console.error("Auto-fix error:", errorMessage);
+      toast(`AUTO-FIX FAILED: ${errorMessage}`, "error");
     } finally {
       setIsFixing(false);
       setLoadingStatus(undefined);
@@ -375,21 +405,32 @@ function HomeContent() {
     setTimeout(() => setCopied(false), 2000);
   }, [code]);
 
+  const handleGenerateRef = useRef(handleGenerate);
+  const handleCopyRef = useRef(handleCopy);
+  const toastRef = useRef(toast);
+
   useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
-        e.preventDefault();
-        handleGenerate();
-      }
-      if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === "C") {
-        e.preventDefault();
-        handleCopy();
-        toast("SOURCE COPIED", "success");
-      }
-    };
-    window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
+    handleGenerateRef.current = handleGenerate;
+    handleCopyRef.current = handleCopy;
+    toastRef.current = toast;
   }, [handleGenerate, handleCopy, toast]);
+
+  const memoizedKeyboardHandler = useCallback((e: KeyboardEvent) => {
+    if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
+      e.preventDefault();
+      handleGenerateRef.current?.();
+    }
+    if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === "C") {
+      e.preventDefault();
+      handleCopyRef.current?.();
+      toastRef.current?.("SOURCE COPIED", "success");
+    }
+  }, []);
+
+  useEffect(() => {
+    window.addEventListener("keydown", memoizedKeyboardHandler);
+    return () => window.removeEventListener("keydown", memoizedKeyboardHandler);
+  }, [memoizedKeyboardHandler]);
 
   return (
     <div className="h-[100dvh] w-screen bg-background text-foreground flex flex-col justify-between overflow-hidden relative">
@@ -457,6 +498,7 @@ function HomeContent() {
                   isIterating={isIterating}
                   onToggleIterate={() => setIsIterating((v) => !v)}
                   hasGenerated={hasGenerated}
+                  onClearError={() => setError(null)}
                 />
               </div>
             }
@@ -499,6 +541,7 @@ function HomeContent() {
               isIterating={isIterating}
               onToggleIterate={() => setIsIterating((v) => !v)}
               hasGenerated={hasGenerated}
+              onClearError={() => setError(null)}
             />
           </div>
           <div

@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Playfair_Display, Inter } from "next/font/google";
 import "./globals.css";
+import Script from "next/script";
 
 const playfair = Playfair_Display({ subsets: ["latin"], variable: '--font-playfair' });
 const inter = Inter({ subsets: ["latin"], variable: '--font-inter' });
@@ -10,6 +11,7 @@ export const viewport: Viewport = {
   initialScale: 1,
   themeColor: "#000000",
 };
+
 
 export const metadata: Metadata = {
   title: "PromptUI - AI Component Generator",
@@ -40,11 +42,17 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body className={`${inter.variable} ${playfair.variable} font-sans bg-background text-foreground`}>
-        <div 
-          className="fixed inset-0 pointer-events-none z-50 opacity-[0.02]" 
+        <div
+          className="fixed inset-0 pointer-events-none z-50 opacity-[0.02]"
           style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E")` }}
         ></div>
         {children}
+        <Script
+          async
+          src="https://pulse-stat.ramnivas.in/tracker.js"
+          data-site-id="site_ff0c8fe9-50b2-4992-abdb-b56d0c74fd6e"
+          data-api-url="https://pulse-stat.ramnivas.in"
+        />
       </body>
     </html>
   );

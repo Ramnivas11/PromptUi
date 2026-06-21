@@ -2,12 +2,15 @@
 
 import React from "react";
 import { Code2, History, Keyboard } from "lucide-react";
+import { useStorageQuota } from "@/hooks/use-storage-quota";
 
 interface HeaderProps {
     onHistoryClick: () => void;
 }
 
 export function Header({ onHistoryClick }: HeaderProps) {
+    const { quota, status } = useStorageQuota();
+
     return (
         <header className="flex-shrink-0 h-20 border-b border-border bg-transparent flex items-center justify-between px-8 md:px-16 z-50">
             <div className="flex items-center gap-6 min-w-0">
@@ -31,6 +34,13 @@ export function Header({ onHistoryClick }: HeaderProps) {
                     </kbd>
                     <span>To Generate</span>
                 </div>
+
+                {/* Storage Status */}
+                {quota.percentUsed > 0.7 && (
+                    <div className="hidden md:block mr-4 text-[10px] uppercase tracking-[0.2em] text-amber-600 font-medium border border-amber-200 px-3 py-1 bg-amber-50">
+                        Storage: {status}
+                    </div>
+                )}
 
                 {/* GitHub link */}
                 <a

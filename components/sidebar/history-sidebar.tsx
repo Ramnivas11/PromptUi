@@ -23,9 +23,20 @@ export function HistorySidebar({ isOpen, onClose, onSelect }: HistorySidebarProp
         const saved = localStorage.getItem("promptui_history");
         if (saved) {
             try {
-                setHistory(JSON.parse(saved));
+                const parsed = JSON.parse(saved);
+                // Validate each item
+                const validated = parsed.filter(
+                  (item: unknown) =>
+                    item &&
+                    typeof item === 'object' &&
+                    typeof (item as Record<string, unknown>).prompt === 'string' &&
+                    typeof (item as Record<string, unknown>).code === 'string' &&
+                    typeof (item as Record<string, unknown>).timestamp === 'number'
+                );
+                setHistory(validated);
             } catch (e) {
                 console.error("Failed to parse history", e);
+                setHistory([]);
             }
         }
     };
@@ -102,11 +113,13 @@ export function HistorySidebar({ isOpen, onClose, onSelect }: HistorySidebarProp
                                         <div className="flex items-center gap-3">
                                             <div className="h-1 w-1 bg-gold rounded-none opacity-0 group-hover:opacity-100 transition-opacity duration-700"></div>
                                             <p className="text-[10px] text-muted-foreground uppercase tracking-[0.25em] font-sans">
-                                                {new Date(item.timestamp).toLocaleDateString(undefined, {
-                                                    year: 'numeric',
-                                                    month: 'long',
-                                                    day: 'numeric'
-                                                })}
+                                                {item.timestamp && typeof item.timestamp === "number"
+                                                  ? new Date(item.timestamp).toLocaleDateString(undefined, {
+                                                      year: 'numeric',
+                                                      month: 'long',
+                                                      day: 'numeric'
+                                                    })
+                                                  : 'Unknown date'}
                                             </p>
                                         </div>
                                         <p className="text-lg md:text-xl text-charcoal font-editorial line-clamp-3 leading-relaxed group-hover:text-gold transition-colors duration-700">

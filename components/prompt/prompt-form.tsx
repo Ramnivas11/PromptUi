@@ -4,6 +4,7 @@ import React from "react";
 import { Wand2, Loader2, Sparkles, RotateCcw, X } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
+import { ErrorDisplay } from "@/components/ui/error-display";
 
 interface PromptFormProps {
     prompt: string;
@@ -16,6 +17,7 @@ interface PromptFormProps {
     isIterating?: boolean;
     onToggleIterate?: () => void;
     hasGenerated?: boolean;
+    onClearError?: () => void;
 }
 
 const EXAMPLE_PROMPTS = [
@@ -40,6 +42,7 @@ export function PromptForm({
     isIterating = false,
     onToggleIterate,
     hasGenerated = false,
+    onClearError,
 }: PromptFormProps) {
     const handleKeyDown = (e: React.KeyboardEvent) => {
         if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
@@ -162,10 +165,19 @@ export function PromptForm({
                             initial={{ opacity: 0, height: 0 }}
                             animate={{ opacity: 1, height: "auto" }}
                             exit={{ opacity: 0, height: 0 }}
-                            className="flex-shrink-0 bg-transparent border-t border-destructive text-destructive flex items-start gap-4 overflow-hidden rounded-none pt-4 tracking-wide text-sm"
+                            className="flex-shrink-0 pt-4"
                         >
-                            <span className="font-semibold uppercase tracking-widest text-xs mt-0.5">Error</span>
-                            <span className="break-words">{error}</span>
+                            <ErrorDisplay
+                                type="error"
+                                title="Generation Failed"
+                                message={error}
+                                details={error.includes("Stream") ? error : undefined}
+                                onDismiss={onClearError}
+                                action={{
+                                    label: "Try Again",
+                                    onClick: onSubmit,
+                                }}
+                            />
                         </motion.div>
                     )}
                 </AnimatePresence>

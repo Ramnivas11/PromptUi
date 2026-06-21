@@ -1,5 +1,22 @@
 import JSZip from "jszip";
 
+function sanitizeFilePath(filePath: string): string | null {
+  let sanitized = filePath.replace(/^[\/\.]+/, "");
+  if (sanitized.includes("..") || sanitized.includes("../")) {
+    console.warn(`Rejecting file path with traversal: ${filePath}`);
+    return null;
+  }
+  if (!/^[\w\-\/\.]+$/.test(sanitized)) {
+    console.warn(`Rejecting file path with invalid characters: ${filePath}`);
+    return null;
+  }
+  if (sanitized.startsWith("/")) sanitized = sanitized.slice(1);
+  if (sanitized.length > 100) {
+    console.warn(`File path too long: ${filePath}`);
+    return null;
+  }
+  return sanitized;
+}
 /**
  * Generates a complete Vite + React + Tailwind project as a zip blob.
  */
@@ -125,9 +142,24 @@ ReactDOM.createRoot(document.getElementById('root')).render(
     // Component files
     if (files && Object.keys(files).length > 1) {
         for (const [path, content] of Object.entries(files)) {
-            // Convert /App.js → src/App.jsx
-            const cleanPath = path.startsWith("/") ? path.slice(1) : path;
-            const srcPath = `src/${cleanPath.replace(/\.js$/, ".jsx")}`;
+            const sanitized = sanitizeFilePath(path);
+            if (!sanitized) {
+                console.warn(`Skipping invalid file path: ${path}`);
+                continue;
+            }
+
+            let finalPath = sanitized;
+            if (!finalPath.endsWith(".jsx") && !finalPath.endsWith(".js")) {
+                finalPath = finalPath.replace(/\.\w+$/, "") + ".jsx";
+            }
+
+            const srcPath = `src/${finalPath}`;
+
+            if (!srcPath.startsWith("src/")) {
+                console.warn(`Path doesn't start with src/: ${srcPath}`);
+                continue;
+            }
+
             zip.file(srcPath, content);
         }
     } else {

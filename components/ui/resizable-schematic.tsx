@@ -38,41 +38,52 @@ export function ResizableSchematic({
         localStorage.setItem("promptui_layout_width", leftWidth.toString());
     }, [leftWidth]);
 
-    const startResize = (e: React.MouseEvent) => {
+    const startResize = (e: React.MouseEvent | React.TouchEvent) => {
         e.preventDefault();
         setIsDragging(true);
     };
 
     useEffect(() => {
-        const handleMouseMove = (e: MouseEvent) => {
+        const handleMove = (e: MouseEvent | TouchEvent) => {
             if (!isDragging || !containerRef.current) return;
 
             const containerRect = containerRef.current.getBoundingClientRect();
+            
+            const clientX = e instanceof TouchEvent
+                ? e.touches[0]?.clientX
+                : (e as MouseEvent).clientX;
+                
+            if (clientX === undefined) return;
+
             const newLeftWidth =
-                ((e.clientX - containerRect.left) / containerRect.width) * 100;
+                ((clientX - containerRect.left) / containerRect.width) * 100;
 
             if (newLeftWidth >= minLeftWidth && newLeftWidth <= maxLeftWidth) {
                 setLeftWidth(newLeftWidth);
             }
         };
 
-        const handleMouseUp = () => {
+        const handleEnd = () => {
             setIsDragging(false);
         };
 
         if (isDragging) {
-            window.addEventListener("mousemove", handleMouseMove);
-            window.addEventListener("mouseup", handleMouseUp);
+            window.addEventListener("mousemove", handleMove as EventListener);
+            window.addEventListener("touchmove", handleMove as EventListener, { passive: false });
+            window.addEventListener("mouseup", handleEnd);
+            window.addEventListener("touchend", handleEnd);
             document.body.style.cursor = "col-resize";
-            document.body.style.userSelect = "none"; // User select none
+            document.body.style.userSelect = "none";
         } else {
             document.body.style.cursor = "";
             document.body.style.userSelect = "";
         }
 
         return () => {
-            window.removeEventListener("mousemove", handleMouseMove);
-            window.removeEventListener("mouseup", handleMouseUp);
+            window.removeEventListener("mousemove", handleMove as EventListener);
+            window.removeEventListener("touchmove", handleMove as EventListener);
+            window.removeEventListener("mouseup", handleEnd);
+            window.removeEventListener("touchend", handleEnd);
             document.body.style.cursor = "";
             document.body.style.userSelect = "";
         };
@@ -96,6 +107,7 @@ export function ResizableSchematic({
             {/* Handle */}
             <div
                 onMouseDown={startResize}
+                onTouchStart={startResize}
                 className={cn(
                     "w-1 h-full bg-black cursor-col-resize flex-shrink-0 relative z-40 group hover:bg-amber-500/50 transition-colors flex items-center justify-center",
                     isDragging && "bg-amber-500"
