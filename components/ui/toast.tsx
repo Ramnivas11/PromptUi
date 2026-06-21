@@ -32,10 +32,10 @@ const ICON_MAP = {
 };
 
 const BG_MAP = {
-    success: "border-emerald-500/20 bg-emerald-500/10",
-    error: "border-red-500/20 bg-red-500/10",
-    info: "border-blue-500/20 bg-blue-500/10",
-    warning: "border-amber-500/20 bg-amber-500/10",
+    success: "border-emerald-500/30 bg-[#1A1A1A] text-white",
+    error: "border-red-500/30 bg-[#1A1A1A] text-white",
+    info: "border-blue-500/30 bg-[#1A1A1A] text-white",
+    warning: "border-amber-500/30 bg-[#1A1A1A] text-white",
 };
 
 export function ToastProvider({ children }: { children: React.ReactNode }) {
@@ -58,15 +58,15 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
                 <AnimatePresence mode="popLayout">
                     {toasts.map((t) => (
                         <motion.div
-                            key={t.id}
-                            initial={{ opacity: 0, y: 20, scale: 0.95 }}
-                            animate={{ opacity: 1, y: 0, scale: 1 }}
-                            exit={{ opacity: 0, y: -10, scale: 0.95 }}
-                            transition={{ duration: 0.2 }}
-                            className={`pointer-events-auto flex items-center gap-2.5 px-4 py-2.5 rounded-lg border backdrop-blur-xl shadow-2xl text-sm text-zinc-200 ${BG_MAP[t.type]}`}
+                             key={t.id}
+                             initial={{ opacity: 0, y: 20, scale: 0.95 }}
+                             animate={{ opacity: 1, y: 0, scale: 1 }}
+                             exit={{ opacity: 0, y: -10, scale: 0.95 }}
+                             transition={{ duration: 0.2 }}
+                             className={`pointer-events-auto flex items-center gap-3 px-4 py-3.5 rounded-none border shadow-[0_12px_40px_rgba(0,0,0,0.25)] text-xs uppercase tracking-[0.15em] font-medium ${BG_MAP[t.type]}`}
                         >
                             <div className="flex-shrink-0">{ICON_MAP[t.type]}</div>
-                            <span className="font-medium truncate">{t.message}</span>
+                            <span className="truncate">{t.message}</span>
                         </motion.div>
                     ))}
                 </AnimatePresence>
