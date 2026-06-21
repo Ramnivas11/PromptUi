@@ -1,36 +1,90 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# PromptUI
+
+PromptUI is a premium, AI-driven component editor, generator, and sandbox playground built with Next.js, Tailwind CSS, and Sandpack. It enables developers and designers to build luxury, editorial-grade web interfaces instantly using natural language prompts, featuring real-time preview and an automated AI error recovery system.
+
+---
+
+## Key Features
+
+- **Streaming AI Generation:** Generates UI components instantly with Server-Sent Events (SSE) for smooth, interactive generation.
+- **Embedded Sandbox Previews:** Employs `@codesandbox/sandpack-react` to run and interact with generated components in a sandboxed iframe.
+- **Auto-Fix Loop:** Detects compiler/runtime errors inside the sandbox and triggers an automatic AI-feedback correction routine (up to 3 times) to fix the code without manual intervention.
+- **Luxury Editorial Design Guidelines:** Standardizes generated layouts using beautiful aesthetics—alabaster backgrounds, charcoal text, gold accents, spacious margins, clean typography (serif/sans-serif combination), and elegant micro-animations.
+- **Local History & Quota Guard:** Caches generation history and inputs locally via custom `StorageManager` safeguards against disk space limits.
+- **Dynamic Layout:** Features a customizable desktop schematic with resizable panels for code generation, prompt controls, and runtime preview.
+
+---
+
+## Project Structure
+
+```bash
+├── app/
+│   ├── api/
+│   │   └── generate-stream/      # SSE API endpoint for LLM generation
+│   ├── layout.tsx                # App shell, fonts, and external analytics integration
+│   └── page.tsx                  # Main workspace container and state management
+├── components/
+│   ├── prompt/
+│   │   └── prompt-form.tsx       # Prompt entry, submit, status, and iterative toggle
+│   ├── preview/
+│   │   └── preview-panel.tsx     # Code view, Sandpack instance, copy, and error tracking
+│   ├── sidebar/
+│   │   └── history-sidebar.tsx   # Locally cached prompt history explorer
+│   └── ui/                       # Reusable visual components (Toast, Resizable panels, etc.)
+├── lib/
+│   ├── parse-multi-file.ts       # Parses LLM outputs and strips code blocks safely
+│   ├── storage-manager.ts        # Manages localStorage quotas and safety fallbacks
+│   └── stream-parser.ts          # Handles streaming response chunks safely
+├── public/                       # Static assets
+└── tailwind.config.ts            # Custom design tokens (editorial fonts, HSL palettes)
+```
+
+---
 
 ## Getting Started
 
-First, run the development server:
+### Prerequisites
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+- Node.js (v18.x or later recommended)
+- npm, yarn, or pnpm
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### Installation
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+1. **Clone the repository:**
+   ```bash
+   git clone https://github.com/Ramnivas11/PromptUi.git
+   cd PromptUi
+   ```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+2. **Install dependencies:**
+   ```bash
+   npm install
+   ```
 
-## Learn More
+3. **Configure environment variables:**
+   Create a `.env.local` file in the root directory:
+   ```env
+   # API keys/endpoint configurations for the generation service
+   API_KEY=your-api-key-here
+   ```
 
-To learn more about Next.js, take a look at the following resources:
+4. **Run the development server:**
+   ```bash
+   npm run dev
+   ```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+5. Open [http://localhost:3000](http://localhost:3000) to view the application.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+---
 
-## Deploy on Vercel
+## Content Security Policy (CSP) & Sandbox
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+To maintain production security without breaking development features, the app configures strict headers:
+- **Development:** Allows `'unsafe-eval'` for Next.js Fast Refresh and Sandpack runtime environment.
+- **Production:** Hardened CSP blocks runtime script evaluation and limits resource domains to trusted CDNs (like Tailwind CDN, custom analytics, etc.).
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+---
+
+## License
+
+This project is open-source. Feel free to customize it to fit your design system and generation pipelines.

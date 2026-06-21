@@ -70,4 +70,5 @@ next-env.d.ts
 
 # agent
 .agent/
+agent-skills/
 
